@@ -2022,6 +2022,9 @@
                             <option>analog</option>
                             <option>horizonal-bars</option>
                             <option>industrial-step</option>
+                            <option>neon</option>
+                            <option>thermo</option>
+                            <option>split-arc</option>
                         </select>
                         &nbsp;&nbsp;Gauge Style
                     </label>
@@ -6030,6 +6033,203 @@ class GameEngine {
                         ctx.font = `bold ${UI.getFontSize('--fs-sm')} Geo`;
                         ctx.fillText(label.toUpperCase(), x, y + 20 * dpr);
                         break;
+                case "neon":
+                    // Animated neon: rotating halo + moving spark
+                    ctx.save();
+                    // Base dim ring
+                    ctx.beginPath();
+                    ctx.arc(x, y, r, 0, Math.PI * 2);
+                    ctx.lineWidth = 4 * dpr;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+                    ctx.stroke();
+
+                    // Rotating halo segments (gives motion illusion)
+                    const now = Date.now();
+                    const phase = ((now % 2400) / 2400) * Math.PI * 2;
+                    for (let i = 0; i < 8; i++) {
+                        const a0 = (i / 8) * Math.PI * 2 + phase;
+                        const a1 = a0 + 0.25;
+                        ctx.beginPath();
+                        ctx.strokeStyle = Qt.lighter(color, 0.2);
+                        ctx.lineWidth = (6 - i * 0.5) * dpr;
+                        ctx.globalAlpha = 0.12 + (i / 8) * 0.1;
+                        ctx.arc(x, y, r + (i * 2 * dpr), a0, a1);
+                        ctx.stroke();
+                    }
+                    ctx.globalAlpha = 1;
+
+                    // Main progress neon stroke with glow
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 18 * dpr;
+                    ctx.beginPath();
+                    ctx.lineWidth = 6 * dpr;
+                    ctx.lineCap = 'round';
+                    ctx.strokeStyle = color;
+                    ctx.arc(x, y, r, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * pct));
+                    ctx.stroke();
+                    ctx.shadowBlur = 0;
+
+                    // Moving spark along edge to show progress
+                    const sparkAngle = -Math.PI / 2 + (Math.PI * 2 * pct) + Math.sin(now / 300) * 0.05;
+                    const sx = x + Math.cos(sparkAngle) * (r);
+                    const sy = y + Math.sin(sparkAngle) * (r);
+                    ctx.beginPath();
+                    ctx.fillStyle = '#fff';
+                    ctx.globalAlpha = 0.9;
+                    ctx.arc(sx, sy, 3 * dpr, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+
+                    // Inner display window
+                    ctx.beginPath();
+                    ctx.arc(x, y, r - (14 * dpr), 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+                    ctx.fill();
+
+                    // Digital readout style number
+                    ctx.fillStyle = color;
+                    ctx.font = `600 ${UI.getFontSize('--fs-lg')} Geo`;
+                    ctx.fillText(Math.floor(val), x, y - (6 * dpr));
+                    ctx.fillStyle = '#ccc';
+                    ctx.font = `bold ${UI.getFontSize('--fs-sm')} Geo`;
+                    ctx.fillText(label, x, y + (r * 0.55));
+                    ctx.restore();
+                    break;
+
+                case "thermo":
+                    // Industrial thermometer with metal frame and tick scale
+                    const tw2 = r * 0.42;
+                    const th2 = r * 2.4;
+                    const tx2 = x - tw2 / 2;
+                    const ty2 = y - th2 / 2;
+
+                    // Metal casing
+                    ctx.beginPath();
+                    this.drawRoundedRect(ctx, tx2 - 6 * dpr, ty2 - 6 * dpr, tw2 + 12 * dpr, th2 + 12 * dpr, (tw2 + 12 * dpr) / 6);
+                    ctx.fillStyle = 'rgba(60,60,60,0.95)';
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.stroke();
+
+                    // Glass tube
+                    ctx.beginPath();
+                    this.drawRoundedRect(ctx, tx2, ty2, tw2, th2, tw2 / 2);
+                    const glassG = ctx.createLinearGradient(tx2, ty2, tx2 + tw2, ty2 + th2);
+                    glassG.addColorStop(0, 'rgba(255,255,255,0.03)');
+                    glassG.addColorStop(1, 'rgba(0,0,0,0.3)');
+                    ctx.fillStyle = glassG;
+                    ctx.fill();
+
+                    // Mercury fill with subtle noise (dashed effect)
+                    ctx.save();
+                    ctx.beginPath();
+                    this.drawRoundedRect(ctx, tx2 + 3 * dpr, ty2 + 3 * dpr + (th2 * (1 - pct)), tw2 - 6 * dpr, th2 * pct - 6 * dpr, (tw2 - 6 * dpr) / 2);
+                    ctx.clip();
+                    const mg = ctx.createLinearGradient(x, ty2 + th2, x, ty2);
+                    mg.addColorStop(0, '#111');
+                    mg.addColorStop(1, color);
+                    ctx.fillStyle = mg;
+                    ctx.fillRect(tx2, ty2, tw2, th2);
+
+                    // subtle horizontal ripples
+                    ctx.globalAlpha = 0.06;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                    for (let ry = 0; ry < th2; ry += 6 * dpr) {
+                        ctx.beginPath();
+                        ctx.moveTo(tx2, ty2 + ry);
+                        ctx.lineTo(tx2 + tw2, ty2 + ry + Math.sin((Date.now() / 300) + ry) * 1.5 * dpr);
+                        ctx.stroke();
+                    }
+                    ctx.globalAlpha = 1;
+                    ctx.restore();
+
+                    // Bulb with glow
+                    const bulbR2 = tw2 * 0.95;
+                    const bulbX = x;
+                    const bulbY = ty2 + th2 + bulbR2 * 0.15;
+                    const bulbG = ctx.createRadialGradient(bulbX, bulbY, bulbR2 * 0.2, bulbX, bulbY, bulbR2 * 1.2);
+                    bulbG.addColorStop(0, color);
+                    bulbG.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.beginPath();
+                    ctx.arc(bulbX, bulbY, bulbR2, 0, Math.PI * 2);
+                    ctx.fillStyle = bulbG;
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.stroke();
+
+                    // Tick marks left side
+                    ctx.fillStyle = '#ddd';
+                    ctx.font = `${UI.getFontSize('--fs-xs')} Geo`;
+                    const ticks = 6;
+                    for (let i = 0; i <= ticks; i++) {
+                        const tPct = i / ticks;
+                        const tyTick = ty2 + th2 - (tPct * th2);
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+                        ctx.lineWidth = 1 * dpr;
+                        ctx.moveTo(tx2 - 6 * dpr, tyTick);
+                        ctx.lineTo(tx2 + 4 * dpr, tyTick);
+                        ctx.stroke();
+                        ctx.fillText(Math.round(tPct * max), tx2 - 10 * dpr, tyTick + (3 * dpr));
+                    }
+
+                    // Labels
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `bold ${UI.getFontSize('--fs-sm')} Geo`;
+                    ctx.fillText(label, x, ty2 - (12 * dpr));
+                    ctx.font = `700 ${UI.getFontSize('--fs-sm')} Stalinist One`;
+                    ctx.fillText(Math.floor(val), x, bulbY + bulbR2 + (14 * dpr));
+                    break;
+
+                case "split-arc":
+                    // Segmented multi-arc with notch separators; each segment lights as value increases
+                    const segStart = Math.PI * 0.7;
+                    const segEnd = Math.PI * 2.3;
+                    const segments = 18;
+                    const gapAngle = 0.02;
+                    for (let i = 0; i < segments; i++) {
+                        const segPct = i / segments;
+                        const a0 = segStart + (segEnd - segStart) * (i / segments) + gapAngle;
+                        const a1 = segStart + (segEnd - segStart) * ((i + 1) / segments) - gapAngle;
+                        const filled = (i / segments) < pct;
+                        ctx.beginPath();
+                        ctx.strokeStyle = filled ? (i / segments < 0.6 ? '#f1c40f' : color) : 'rgba(255,255,255,0.06)';
+                        ctx.lineWidth = 10 * dpr;
+                        ctx.lineCap = 'butt';
+                        ctx.arc(x, y, r, a0, a1);
+                        ctx.stroke();
+                    }
+
+                    // Inner radial notches for a mechanical feel
+                    const notchR0 = r - (14 * dpr);
+                    const notchR1 = r - (6 * dpr);
+                    for (let i = 0; i < 10; i++) {
+                        const a = segStart + (segEnd - segStart) * (i / 10);
+                        ctx.beginPath();
+                        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+                        ctx.lineWidth = 2 * dpr;
+                        ctx.moveTo(x + Math.cos(a) * notchR0, y + Math.sin(a) * notchR0);
+                        ctx.lineTo(x + Math.cos(a) * notchR1, y + Math.sin(a) * notchR1);
+                        ctx.stroke();
+                    }
+
+                    // Small center label with framed background
+                    ctx.beginPath();
+                    ctx.arc(x, y, r - (34 * dpr), 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+                    ctx.lineWidth = 1 * dpr;
+                    ctx.stroke();
+
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `bold ${UI.getFontSize('--fs-md')} Stalinist One`;
+                    ctx.fillText(Math.floor(val), x, y - (4 * dpr));
+                    ctx.font = `${UI.getFontSize('--fs-sm')} Geo`;
+                    ctx.fillText(label, x, y + (r * 0.5));
+                    break;
             }
             ctx.restore();
         }
