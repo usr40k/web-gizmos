@@ -317,7 +317,8 @@ def procedural_tile(x, y, seed, mw, mh):
     s = math.sin(x * 12.9898 + y * 78.233 + seed) * 43758.5453
     r = s - math.floor(s)
 
-    if r > 0.985:
+    # Rare ores (Ruby, Emerald, Diamond) - now rarer / more sparse
+    if r > 0.994:
         s2 = math.sin(x * 12.9898 + (y + 10000) * 78.233 + seed) * 43758.5453
         ore_roll = s2 - math.floor(s2)
         if y > 400 and ore_roll < 0.2:
@@ -328,12 +329,51 @@ def procedural_tile(x, y, seed, mw, mh):
             return 9  # DIAMOND
     if r > 0.9999:
         return 67  # RICK
-    if r > 0.96 and y > 100:
+
+    # Standard (scattered) Ores - MUCH sparser than before.
+    # Most minerals now show up in veins below instead of scattered singles.
+    if r > 0.99 and y > 100:
         return 8  # GOLD
-    if r > 0.94 and y > 50:
+    if r > 0.982 and y > 50:
         return 7  # IRON
-    if r > 0.94:
+    if r > 0.972:
         return 6  # COAL
+
+    # ORE VEINS - dense clusters seeded in coarse cells.
+    # Mirrors client getVeinHash() / getVeinOre() exactly.
+    V = 12
+    cx = x // V
+    cy = y // V
+    half = V / 2.0
+    dxc = (x - (cx * V + half)) / half
+    dyc = (y - (cy * V + half)) / half
+    focus = max(0.0, 1.0 - math.hypot(dxc, dyc))  # 1 center, 0 edges
+
+    sv = math.sin(cx * 3.7 + cy * 19.1 + seed) * 43758.5453
+    vr = sv - math.floor(sv)
+
+    ore = 0
+    if y > 100:
+        if vr > 0.955:
+            ore = 8  # GOLD
+        elif vr > 0.90:
+            ore = 7  # IRON
+        elif vr > 0.82:
+            ore = 6  # COAL
+    elif y > 50:
+        if vr > 0.90:
+            ore = 7  # IRON
+        elif vr > 0.80:
+            ore = 6  # COAL
+    else:
+        if vr > 0.82:
+            ore = 6  # COAL
+    if ore:
+        s3 = math.sin(x * 12.9898 + (y + 30000) * 78.233 + seed) * 43758.5453
+        tv = s3 - math.floor(s3)
+        density = (0.08 + 0.92 * focus * focus) * (0.6 if ore == 8 else 1.0)
+        if tv < density:
+            return ore
 
     return base
 

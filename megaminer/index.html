@@ -1847,6 +1847,12 @@
                     <h4 style="color:#aaa; border-bottom:1px solid #444; margin-top:20px;">LEADERBOARD</h4>
                     <div id="leaderboard-container"></div>
                 </div>
+                <div>
+                    <h4 style="color:#aaa; border-bottom:1px solid #444;">WAYPOINTS <span style="color:#666; font-size:0.7em;">(M to add)</span></h4>
+                    <p style="font-size: var(--fs-sm); color:#777;">Save POIs &amp; navigate back from the minimap.</p>
+                    <button class="btn btn-small" style="background:#2ecc71; width:100%; margin-bottom:10px;" onclick="Game.addWaypoint()">+ SET WAYPOINT HERE</button>
+                    <div id="waypoints-list" class="warp-list"></div>
+                </div>
             </div>
             <button class="btn" style="background:#555; margin-top:20px;" onclick="$('dashboard-modal').classList.remove('active')">Close</button>
         </div>
@@ -2086,6 +2092,7 @@
                     <button id="btn-bind-transfer" class="btn btn-bind" onclick="Input.startBind('transfer')"></button>
                     <button id="btn-bind-chat" class="btn btn-bind" onclick="Input.startBind('chat')"></button>
                     <button id="btn-bind-AOE" class="btn btn-bind" onclick="Input.startBind('AOE')"></button>
+                    <button id="btn-bind-waypoint" class="btn btn-bind" onclick="Input.startBind('waypoint')"></button>
                 </div>
                 <small>Hold BUILD + Arrow to place Equipped block. Mouse Wheel to Zoom.</small>
             </div>
@@ -2598,6 +2605,7 @@ class SoundManager {
         } else if (this.ctx.state === 'suspended') {
             this.ctx.resume();
         }
+        if (!this.ambientNodes) this.setupAmbient();
     }
 
     setupNodes() {
@@ -2689,6 +2697,44 @@ class SoundManager {
         } else {
             this.nodes.drillGain.gain.setTargetAtTime(0, t, 0.1);
         }
+    }
+
+    // Depth/biome-based ambient audio bed (drums a low rumble into the SFX bus)
+    setupAmbient() {
+        if (!this.ctx || !this.noiseBuffer || this.ambientNodes) return;
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = this.noiseBuffer;
+        noise.loop = true;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 200;
+
+        const gain = this.ctx.createGain();
+        gain.gain.value = 0;
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.nodes.sfx);
+        noise.start();
+        this.ambientNodes = { filter, gain };
+    }
+
+    updateAmbient(biome, depth) {
+        if (!this.ctx || !this.ambientNodes) return;
+        const t = this.ctx.currentTime;
+        const { filter, gain } = this.ambientNodes;
+
+        // The deeper / more dangerous the biome, the lower and louder the rumble.
+        let freq = 200, vol = 0.02;
+        if (biome === 'surface' || biome === 'underground') { freq = 160; vol = 0.025; }
+        else if (biome === 'cavern')           { freq = 220; vol = 0.05; }
+        else if (biome === 'deep_cavern')      { freq = 300; vol = 0.09; }
+        else if (biome === 'magma_chambers')   { freq = 90;  vol = 0.15; }
+        else if (biome === 'the_abyss')        { freq = 60;  vol = 0.22; }
+
+        filter.frequency.setTargetAtTime(freq, t, 1.5);
+        gain.gain.setTargetAtTime(vol, t, 1.5);
     }
 
     playClip(filename, volume, onPlayCallback) {
@@ -2966,6 +3012,7 @@ class GameEngine {
             joinedAt: now(),
             teleporters: [], // Discovered teleporters list
             blueprints: [], // Saved blueprints
+            waypoints: [], // User-saved landmarks (Waypoints & Markers)
             achievements: {} // Unlocked achievements
         };
 
@@ -2977,6 +3024,7 @@ class GameEngine {
         this.particles = [];
         this.explosives = []; // Track active TNT/Nuke timers
         this.merchants = []; // Active merchant NPCs
+        this.weatherStormUntil = 0; // End timestamp for a weather "surge" boost
         this.isAdmin = false;
         this.hostId = null;
         this.bannedIds = JSON.parse(localStorage.getItem('mm_banned') || '[]');
@@ -3049,7 +3097,8 @@ class GameEngine {
             xrayRange: this.localPlayer.xrayRange,
             multiMine: this.localPlayer.multiMine,
             vehColor: this.settings.color,
-            teleporters: this.localPlayer.teleporters || []
+            teleporters: this.localPlayer.teleporters || [],
+            waypoints: this.localPlayer.waypoints || []
         };
         localStorage.setItem('mm_stats_'+this.settings.room, JSON.stringify(data))
     }
@@ -3068,6 +3117,7 @@ class GameEngine {
                 if (data.heatResist) p.heatResist = data.heatResist;
                 if (data.xrayRange) p.xrayRange = data.xrayRange;
                 if (data.teleporters) p.teleporters = data.teleporters;
+                if (data.waypoints) p.waypoints = data.waypoints;
                 if (data.multiMine) p.multiMine = data.multiMine;
                 if (data.vehColor) {
                     this.settings.color = data.vehColor;
@@ -3223,10 +3273,10 @@ class GameEngine {
         else if (y > 30) type = TILE_TYPES.STONE;
 
         // 2. Get the main "Rarity" roll for this tile
-        let r = Game.getMapRandom(x, y);
+        const r = Game.getMapRandom(x, y);
 
-        // 3. Check for Rare Ores (Ruby, Emerald, Diamond)
-        if (r > 0.985) {
+        // 3. Rare Ores (Ruby, Emerald, Diamond) - now rarer / more sparse
+        if (r > 0.994) {
             const oreRoll = Game.getMapRandom(x, y + 10000);
 
             if (y > 400 && oreRoll < 0.2) return TILE_TYPES.RUBY;       // 20% of rare ores
@@ -3238,12 +3288,57 @@ class GameEngine {
             return TILE_TYPES.RICK;
         }
 
-        // 4. Standard Ores
-        if (r > 0.96 && y > 100) return TILE_TYPES.GOLD;
-        if (r > 0.94 && y > 50) return TILE_TYPES.IRON;
-        if (r > 0.94) return TILE_TYPES.COAL;
+        // 4. Standard (scattered) Ores - MUCH sparser than before.
+        //    Most minerals now show up in veins (step 5) instead of scattered singles.
+        if (r > 0.99 && y > 100) return TILE_TYPES.GOLD;
+        if (r > 0.982 && y > 50) return TILE_TYPES.IRON;
+        if (r > 0.972) return TILE_TYPES.COAL;
+
+        // 5. ORE VEINS - dense clusters seeded in coarse cells.
+        const ore = this.getVeinOre(x, y);
+        if (ore !== null) return ore;
 
         return type;
+    }
+
+    // Deterministic coarse-cell hash, independent from the per-tile hash.
+    // (Mirrored exactly on the server in procedural_tile().)
+    getVeinHash(cx, cy) {
+        const s = Math.sin(cx * 3.7 + cy * 19.1 + this.roomSeed) * 43758.5453;
+        return s - Math.floor(s);
+    }
+
+    getVeinOre(x, y) {
+        const V = 12;                      // vein cell size (tiles)
+        const cx = Math.floor(x / V);
+        const cy = Math.floor(y / V);
+
+        // Signed distance from the cell center -> 0 at center, growing outward.
+        const dxc = (x - (cx * V + V / 2)) / (V / 2);
+        const dyc = (y - (cy * V + V / 2)) / (V / 2);
+        const focus = Math.max(0, 1 - Math.hypot(dxc, dyc)); // 1 center, 0 edges
+
+        const vr = this.getVeinHash(cx, cy);
+
+        // Pick the vein type based on the cell roll + depth eligibility.
+        let ore = 0;
+        if (y > 100) {
+            if (vr > 0.955) ore = TILE_TYPES.GOLD;
+            else if (vr > 0.90) ore = TILE_TYPES.IRON;
+            else if (vr > 0.82) ore = TILE_TYPES.COAL;
+        } else if (y > 50) {
+            if (vr > 0.90) ore = TILE_TYPES.IRON;
+            else if (vr > 0.80) ore = TILE_TYPES.COAL;
+        } else {
+            if (vr > 0.82) ore = TILE_TYPES.COAL;
+        }
+        if (!ore) return null;
+
+        // Per-tile placement: denser toward the vein center, gold veins are tighter.
+        const t = Game.getMapRandom(x, y + 30000);
+        const density = (0.08 + 0.92 * focus * focus) * (ore === TILE_TYPES.GOLD ? 0.6 : 1.0);
+        if (t < density) return ore;
+        return null;
     }
 
     async randomizeUsername() {
@@ -3666,6 +3761,28 @@ class GameEngine {
         GameConfig.set('PlayerSettings.showCoords', show);
     }
 
+    // --- WAYPOINTS & MARKERS ---
+    async addWaypoint() {
+        const p = this.localPlayer;
+        const name = await CustomModal.show('prompt', 'Add Waypoint', 'Name this point of interest:', `Waypoint ${(p.waypoints || []).length + 1}`);
+        if (!name) return;
+        p.waypoints = p.waypoints || [];
+        p.waypoints.push({ id: uuid(), x: p.gridX, y: p.gridY, name });
+        this.saveLocalProgress();
+        UI.renderWaypoints();
+        UI.showToast(`◆ Waypoint "${name}" saved`, "success");
+        Sound.playSound('success');
+    }
+
+    removeWaypoint(id) {
+        const p = this.localPlayer;
+        p.waypoints = (p.waypoints || []).filter((w) => w && w.id !== id);
+        this.saveLocalProgress();
+        UI.renderWaypoints();
+        UI.showToast("Waypoint removed", "normal");
+        Sound.playSound('click');
+    }
+
     update() {
         if (!this.running) return;
 
@@ -3856,6 +3973,9 @@ class GameEngine {
         // Depth Zones & Biomes
         this.updateDepthZones();
 
+        // Ambient weather particles
+        this.updateWeather(dt);
+
         // Heat & Prompt
         // Use destGridY for depth check so heat updates as we drill down, not after
         let depthY = (p.nextGridY !== undefined) ? p.nextGridY : p.gridY;
@@ -3895,6 +4015,13 @@ class GameEngine {
             }
             this.lastActionTime = now();
             Input.virtual.interact = false;
+        }
+
+        const waypointPressed = Input.keys[this.settings.keys.waypoint] || Input.virtual.waypoint;
+        if (waypointPressed && now() - this.lastActionTime > 500 && document.activeElement !== $('chat-input')) {
+            this.addWaypoint();
+            this.lastActionTime = now();
+            Input.virtual.waypoint = false;
         }
 
         const transferPressed = Input.keys[this.settings.keys.transfer] || Input.virtual.transfer;
@@ -4372,11 +4499,61 @@ class GameEngine {
             Game.checkAchievements();
         }
         
-        // Biome-specific effects
+        // Biome-specific effects + drive the ambient audio bed
         if (newBiome === 'magma_chambers' || newBiome === 'the_abyss') {
             // Increased heat in deeper biomes
             p.temp += 0.01 * (depth > 1000 ? 2 : 1);
         }
+        Sound.updateAmbient(this.currentBiome, depth);
+    }
+
+    // --- WEATHER EFFECTS (ambient particles per biome) ---
+    updateWeather(dt) {
+        if (!this.running) return;
+        const p = this.localPlayer;
+        if (!p) return;
+        const biome = this.currentBiome || 'surface';
+        const depth = Math.max(0, (p.gridY || 0) - 5);
+
+        // Visual config per biome (only non-surface zones get ambient "weather")
+        const cfgs = {
+            'magma_chambers': { color: '#ff8844', gravity: 1.0,  rate: 0.04, size: 2, life: 2.4 },
+            'the_abyss':      { color: '#7dffd0', gravity: -0.15, rate: 0.9,  size: 2, life: 3.0 },
+            'deep_cavern':    { color: '#bca6ff', gravity: 0.5,  rate: 0.45, size: 2, life: 2.0 },
+            'cavern':         { color: '#cfa06c', gravity: 0.5,  rate: 0.14, size: 1, life: 1.6 },
+            'underground':    { color: '#d7d7d7', gravity: 0.8,  rate: 0.05, size: 1, life: 0.8 }
+        };
+        const cfg = cfgs[biome];
+        if (!cfg) return;
+
+        // Occasional "storm" surge that intensifies the effect for a moment
+        if (!this.weatherStormUntil && depth > 100 && Math.random() < 0.0008) {
+            this.weatherStormUntil = now() + 4000;
+            UI.showToast('Weather surge! Ash & debris whip through the tunnels.', 'warn');
+        }
+        const storming = this.weatherStormUntil && now() < this.weatherStormUntil;
+        if (!storming && this.weatherStormUntil) this.weatherStormUntil = 0;
+
+        if (this.particles.length > 180) return;
+
+        // Spawn a few particles this frame (scaled up during a surge)
+        if (Math.random() > cfg.rate * (storming ? 6 : 1)) return;
+
+        const ts = CONSTANTS.TILE_SIZE;
+        const viewW = this.canvas.width / (this.zoom || 1);
+        const viewH = this.canvas.height / (this.zoom || 1);
+        const cxw = p.x + ts / 2;
+        const cyw = p.y + ts / 2;
+
+        this.particles.push({
+            x: cxw + (Math.random() * 2 - 1) * viewW / 2,
+            y: cyw + (Math.random() * 2 - 1) * viewH / 2,
+            vx: (Math.random() - 0.5) * (storming ? 1.6 : 0.5),
+            vy: cfg.gravity * (0.6 + Math.random() * 0.8),
+            life: cfg.life * (0.7 + Math.random() * 0.6),
+            size: cfg.size,
+            color: cfg.color
+        });
     }
 
     // --- ACHIEVEMENTS SYSTEM ---
@@ -4942,7 +5119,8 @@ class GameEngine {
 
                 this.ctx.globalAlpha = p.life;
                 this.ctx.fillStyle = p.color;
-                this.ctx.fillRect(p.x | 0, p.y | 0, 4, 4);
+                const ps = p.size || 4;
+                this.ctx.fillRect(p.x | 0, p.y | 0, ps, ps);
             }
             this.ctx.globalAlpha = 1.0;
         }
@@ -4950,6 +5128,7 @@ class GameEngine {
         this.drawLocalMinimap();
         this.ctx.resetTransform();
         this.drawHUD();
+        this.drawWaypointGuide();
 
         // Increment a tick for logic throttling
         this.frameTick = (this.frameTick || 0) + 1;
@@ -5525,9 +5704,79 @@ class GameEngine {
                 ctx.fillRect(screenX, screenY, 3, 3);
             }
         });
+
+        // Waypoints: diamond markers when in range + an arrow on the edge
+        // pointing toward the nearest out-of-range waypoint.
+        const wps = this.localPlayer.waypoints || [];
+        if (wps.length) {
+            let nearest = null, nearestD = Infinity;
+            wps.forEach(w => {
+                const dxw = w.x - pX;
+                const dyw = w.y - pY;
+                if (Math.abs(dxw) < range && Math.abs(dyw) < range) {
+                    const sx = center + dxw * pixelSize;
+                    const sy = center + dyw * pixelSize;
+                    ctx.fillStyle = '#f1c40f';
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy - 3);
+                    ctx.lineTo(sx + 3, sy);
+                    ctx.lineTo(sx, sy + 3);
+                    ctx.lineTo(sx - 3, sy);
+                    ctx.closePath();
+                    ctx.fill();
+                } else {
+                    const d = dxw * dxw + dyw * dyw;
+                    if (d < nearestD) { nearestD = d; nearest = w; }
+                }
+            });
+            if (nearest) {
+                const dxw = nearest.x - pX;
+                const dyw = nearest.y - pY;
+                const angle = Math.atan2(dyw, dxw);
+                const edgeR = (range - 1) * pixelSize - 2;
+                const ax = center + Math.cos(angle) * edgeR;
+                const ay = center + Math.sin(angle) * edgeR;
+                ctx.save();
+                ctx.translate(ax, ay);
+                ctx.rotate(angle);
+                ctx.fillStyle = '#f1c40f';
+                ctx.beginPath();
+                ctx.moveTo(5, 0);
+                ctx.lineTo(-3, -4);
+                ctx.lineTo(-3, 4);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+        }
     }
 
-   drawHUD() {
+    drawWaypointGuide() {
+        const p = this.localPlayer;
+        const wps = p.waypoints || [];
+        if (!wps.length) return;
+        const ctx = this.ctx;
+        let nearest = null, dmin = Infinity;
+        wps.forEach(w => {
+            const d = (w.x - p.gridX) ** 2 + (w.y - p.gridY) ** 2;
+            if (d < dmin) { dmin = d; nearest = w; }
+        });
+        if (!nearest) return;
+        const dist = Math.round(Math.sqrt(dmin));
+        const x = this.canvas.width / 2;
+        const y = this.canvas.height - (this.isMobile ? 200 : 95) * dpr;
+        const text = `◆ ${nearest.name}  ${dist}m${dist <= 2 ? '  ●' : ''}`;
+        ctx.font = `bold ${UI.getFontSize('--fs-sm')} Geo`;
+        ctx.textAlign = 'center';
+        const wText = ctx.measureText(text).width + 14;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        this.drawRoundedRect(ctx, x - wText / 2, y - 12 * dpr, wText, 18 * dpr, 4);
+        ctx.fill();
+        ctx.fillStyle = dist <= 40 ? '#f1c40f' : '#ffffff';
+        ctx.fillText(text, x, y);
+    }
+
+    drawHUD() {
         const p = this.localPlayer;
         const w = this.canvas.width;
         const h = this.canvas.height;
@@ -7894,7 +8143,7 @@ class UIManager {
 
     refreshKeybindLabels() {
         const keys = Game.settings.keys;
-        const map = { up: 'btn-bind-up', down: 'btn-bind-down', left: 'btn-bind-left', right: 'btn-bind-right', build: 'btn-bind-build', interact: 'btn-bind-interact', transfer: 'btn-bind-transfer', chat: 'btn-bind-chat', AOE: 'btn-bind-AOE' };
+        const map = { up: 'btn-bind-up', down: 'btn-bind-down', left: 'btn-bind-left', right: 'btn-bind-right', build: 'btn-bind-build', interact: 'btn-bind-interact', transfer: 'btn-bind-transfer', chat: 'btn-bind-chat', AOE: 'btn-bind-AOE', waypoint: 'btn-bind-waypoint' };
         for (let action in map) {
             let btn = $(map[action]);
             if (Input.bindMode === action) { btn.classList.add('binding'); btn.innerText = `PRESS KEY...`; }
@@ -8139,7 +8388,47 @@ class UIManager {
         } else {
             dash.classList.add('active');
             this.updateDashboard();
+            this.renderWaypoints();
         }
+    }
+
+    renderWaypoints() {
+        const list = $('waypoints-list');
+        if (!list) return;
+        const p = Game.localPlayer;
+        if (!p) return;
+        const wps = p.waypoints || [];
+        list.innerHTML = '';
+
+        if (wps.length === 0) {
+            const msg = document.createElement('div');
+            msg.style.fontSize = '12px';
+            msg.style.fontStyle = 'italic';
+            msg.style.color = '#888';
+            msg.innerText = 'No waypoints yet. Mine deep, tap M or the button above to leave a marker.';
+            list.appendChild(msg);
+            return;
+        }
+
+        const px = p.gridX, py = p.gridY;
+        wps.slice().sort((a, b) => {
+            const da = (a.x - px) ** 2 + (a.y - py) ** 2;
+            const db = (b.x - px) ** 2 + (b.y - py) ** 2;
+            return da - db;
+        }).forEach((w) => {
+            if (!w) return;
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; gap:6px; padding:5px 0; border-bottom:1px solid #2a2a2a;';
+            const dist = Math.floor(Math.sqrt((w.x - px) ** 2 + (w.y - py) ** 2));
+            row.innerHTML = `<span style="color:#f1c40f;">◆</span><strong style="flex:1;">${w.name}</strong><em style="color:#888; font-size:11px;">[${w.x}, ${w.y}]</em><span style="color:#888; font-size:11px;">${dist}m</span>`;
+            const del = document.createElement('button');
+            del.className = 'btn btn-small';
+            del.style.background = '#c0392b';
+            del.textContent = '×';
+            del.onclick = () => Game.removeWaypoint(w.id);
+            row.appendChild(del);
+            list.appendChild(row);
+        });
     }
 
     // Use Consumable Logic
@@ -9183,7 +9472,8 @@ const GameConfig = {
                 interact: 'e',
                 chat: 'Enter',
                 transfer: 'f',
-                AOE: "Shift"
+                AOE: "Shift",
+                waypoint: "m"
             }
         },
         Audio: {
