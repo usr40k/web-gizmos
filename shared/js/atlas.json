@@ -5,38 +5,13 @@
     "extension": "js"
   },
   {
-    "name": "simplex-noise.min.js",
-    "size": 4438,
-    "extension": "js"
-  },
-  {
-    "name": "tone.min.js",
-    "size": 349169,
-    "extension": "js"
-  },
-  {
-    "name": "midiplayer.min.js",
-    "size": 14924,
-    "extension": "js"
-  },
-  {
-    "name": "atlas.json",
-    "size": 952,
-    "extension": "json"
-  },
-  {
-    "name": "marked.min.js",
-    "size": 39903,
-    "extension": "js"
-  },
-  {
     "name": "ua.min.js",
     "size": 533,
     "extension": "js"
   },
   {
-    "name": "mqtt.min.js",
-    "size": 368606,
+    "name": "header.js",
+    "size": 352,
     "extension": "js"
   },
   {
@@ -45,18 +20,43 @@
     "extension": "js"
   },
   {
-    "name": "header.js",
-    "size": 350,
+    "name": "ffmpeg.min.js",
+    "size": 22471,
     "extension": "js"
   },
   {
-    "name": "ffmpeg.min.js",
-    "size": 22471,
+    "name": "tone.min.js",
+    "size": 349169,
+    "extension": "js"
+  },
+  {
+    "name": "marked.min.js",
+    "size": 39903,
+    "extension": "js"
+  },
+  {
+    "name": "mqtt.min.js",
+    "size": 368606,
+    "extension": "js"
+  },
+  {
+    "name": "midiplayer.min.js",
+    "size": 14924,
+    "extension": "js"
+  },
+  {
+    "name": "simplex-noise.min.js",
+    "size": 4438,
     "extension": "js"
   },
   {
     "name": "three.min.js",
     "size": 603445,
     "extension": "js"
+  },
+  {
+    "name": "atlas.json",
+    "size": 952,
+    "extension": "json"
   }
 ]
