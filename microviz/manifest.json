@@ -5,10 +5,10 @@
   "name": "microViz",
   "orientation": "any",
   "scope": "/microviz/index.html",
-  "short_name": "40476.microviz",
+  "short_name": "usr40k.microviz",
   "start_url": "/microviz/index.html",
   "theme_color": "#ffffff",
-  "id": "io.github.40476.microviz",
+  "id": "io.github.usr40k.microviz",
   "lang": "en",
   "categories": [
     "music"

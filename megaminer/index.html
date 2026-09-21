@@ -9725,7 +9725,7 @@ const GameConfig = {
     }
 };
 
-async function getLatestCommit(user = '40476', repo = 'web-gizmos', projectPath = "megaminer") {
+async function getLatestCommit(user = 'usr40k', repo = 'web-gizmos', projectPath = "megaminer") {
     const listUrl = `https://api.github.com/repos/${user}/${repo}/commits?path=${projectPath}&per_page=5`;
 
     try {
