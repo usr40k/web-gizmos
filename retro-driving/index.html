@@ -904,7 +904,7 @@ function muxMP4(frames,avcC,FPS){
 
 const RENDER_CODECS=['avc1.42E01E','avc1.4D401F','avc1.640028']; // baseline first: never reorders (B-frames impossible)
 async function renderVideo(){
-  const fps=CFG.fps, total=Math.min(50000,Math.max(1,Math.round(CFG.render*fps)));
+  const fps=CFG.fps, total=Math.min(500000,Math.max(1,Math.round(CFG.render*fps)));
   if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined'){ vstat('RENDER FAILED: NO WEBCODECS (TRY CHROME/EDGE)'); return; }
   vstat('RENDER 0% · PROBING ENCODER');
   let codec=null;
