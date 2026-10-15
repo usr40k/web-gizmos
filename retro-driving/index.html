@@ -15,6 +15,9 @@
      background:repeating-linear-gradient(to bottom,rgba(0,0,0,.22) 0,rgba(0,0,0,.22) 1px,transparent 1px,transparent 3px)}
   #hint{height:34px;line-height:34px;font-size:11px;letter-spacing:.1em;opacity:.8;white-space:nowrap}
   #hint b{color:#58ff6a;font-weight:normal}
+  #vstat{position:absolute;left:6px;top:6px;z-index:2;pointer-events:none;max-width:100%;
+        font-size:11px;letter-spacing:.1em;color:#58ff6a;text-shadow:1px 1px 0 #000,0 0 4px #000}
+  #vstat a{pointer-events:auto;color:#ffd23a}
 </style>
 </head>
 <body>
@@ -155,6 +158,9 @@ let trip, arrived=false, arriveT=0, tripNo=1, skySeed=1, sky=null, seedBase=1;
    palette   green|amber|cyan|0-2      units     mph|kmh
    scanlines 0/1                       pause     0/1 (start paused)
    sky       skyline variant (int)     hint      0/1 (bottom key hints)
+   render    seconds of video to encode fps       frames per second (dflt 60)
+             as an .mp4 download, as fast     e.g. ?render=10&fps=30
+             as possible (0/omitted = off)
 
    Only non-default values are written back to the address bar, and any
    unknown params in the URL are preserved.
@@ -189,6 +195,8 @@ const CFG = {
   scan:    qflag('scanlines',true),
   pause:   qflag('pause',false),
   hint:    qflag('hint',true),
+  render:  qnum('render',0,0,9999999999),
+  fps:     qnum('fps',60,1,240),
 };
 KMAX *= CFG.curves;
 VMAX *= CFG.speed;
@@ -214,6 +222,7 @@ function syncURL(){
   num('lanes',CFG.lanes,3);
   num('trip',CFG.trip,0);
   num('sky',CFG.sky,null);
+  // render/fps stay in the URL as-is (export params)
   if(themeIdx===0) q.delete('palette'); else q.set('palette',String(themeIdx));
   if(units==='mph') q.delete('units'); else q.set('units',units);
   if(wrap.classList.contains('scan')) q.delete('scanlines'); else q.set('scanlines','0');
@@ -322,7 +331,7 @@ const SPR = {
 function makeCar(o){
   const T=SPR[o.type];
   const c=Object.assign({ latV:0, accel:0, braking:false, cool:1+sim()*2, wanderT:4+sim()*10, planT:sim()*0.2,
-                          forced:false, mergeWait:false, len:T.len, goal:o.slot, goalT:20, player:false }, o);
+                          forced:false, mergeWait:false, mergeDir:1, len:T.len, goal:o.slot, goalT:20, player:false }, o);
   c.lat=slotC(c.slot,c.z);
   return c;
 }
@@ -372,6 +381,7 @@ function plan(c){
     let dist=look;
     for(let i=1;i<=24;i++){ if(slotW(c.slot,c.z+look*i/24)<0.85){ dist=look*i/24; break; } }
     c.mergeDist=dist;
+    c.mergeDir=c.slot<0?1:-1; // dying lane side is still the old slot here: left(-)->right(+), right(+)->left(-)
     const s2=c.slot+(c.slot<0?1:-1);
     if(dist<22 || safeToMove(c,s2)) setSlot(c,s2,true); else c.mergeWait=true;
     return;
@@ -698,14 +708,14 @@ function arrow(ox,oy,pts,c){
 }
 const ICONS={
   S:[[15,17],[15,2]],
-  L:[[20,17],[20,11],[10,6],[10,2]],
-  R:[[10,17],[10,11],[20,6],[20,2]],
+  L:[[20,17],[20,11],[10,3]],
+  R:[[10,17],[10,11],[20,3]],
   tL:[[21,17],[21,9],[7,9]],
   tR:[[9,17],[9,9],[23,9]],
 };
 function roadAction(){
   const p=player;
-  if(p.forced) return {k:p.slot<0?'R':'L',urgent:true};
+  if(p.forced) return {k:p.mergeDir>0?'R':'L',urgent:true};
   if(Math.abs(p.latV)>0.3) return {k:p.latV>0?'R':'L',urgent:false};
   let kk=0;
   for(let i=1;i<=5;i++){ const v=evalPL(world.CV,p.z+i*45); if(Math.abs(v)>Math.abs(kk)) kk=v; }
@@ -804,9 +814,144 @@ function render(){
   }
 }
 
-/* ---------------- input & loop ---------------- */
+/* ================================================================
+   OFFLINE MP4 RENDER — ?render=seconds&fps=N
+   Steps the sim with a fixed dt=1/fps and feeds every frame to a
+   WebCodecs H.264 encoder as fast as the machine allows (nothing
+   here is paced to wall-clock time), then muxes the samples into
+   a plain .mp4 (ftyp/mdat/moov, avc1) and triggers a download.
+   Requires WebCodecs (Chrome/Edge desktop). No libraries needed.
+   ================================================================ */
+const RENDER={ active:CFG.render>0 };
+function vstat(html){
+  let el=document.getElementById('vstat');
+  if(!el){ el=document.createElement('div'); el.id='vstat'; wrap.appendChild(el); }
+  el.innerHTML=html; return el;
+}
+
+/* --- @render-muxer: tiny MP4 writer (self-contained, testable) --- */
+function mp4ascii(s){ const o=new Uint8Array(s.length); for(let i=0;i<s.length;i++) o[i]=s.charCodeAt(i)&255; return o; }
+function mp4n(v,bytes){ v=Math.floor(v); if(v<0) v+=4294967296; const o=new Uint8Array(bytes);
+  for(let i=bytes-1;i>=0;i--){ o[i]=v%256; v=(v-o[i])/256; } return o; }
+const mp4U16=v=>mp4n(v,2), mp4U32=v=>mp4n(v,4), mp4I32=v=>mp4n(v|0,4);
+function mp4box(type,parts){
+  let len=8; for(const p of parts) len+=p.length;
+  const out=new Uint8Array(len), dv=new DataView(out.buffer);
+  dv.setUint32(0,len);
+  out[4]=type.charCodeAt(0); out[5]=type.charCodeAt(1); out[6]=type.charCodeAt(2); out[7]=type.charCodeAt(3);
+  let o=8; for(const p of parts){ out.set(p,o); o+=p.length; }
+  return out;
+}
+// frames: [{data:Uint8Array (AVCC length-prefixed H.264), key:bool, pts:int (timescale units)}]
+// in decode(=callback) order. avcC: Uint8Array AVCDecoderConfigurationRecord.
+function muxMP4(frames,avcC,FPS){
+  const TS=Math.round(FPS*1000), DUR=1000, n=frames.length;
+  // Decode times are regular (fixed fps output order); composition offsets
+  // are relative to the first frame so the clip starts at 0. Baseline H.264
+  // never reorders, so ctts below is normally all zeros and gets omitted.
+  const p0=frames[0].pts;
+  let cttsNeed=false;
+  for(let i=0;i<n;i++){ const c=frames[i].pts-p0-i*DUR; frames[i].ctts=c; if(c!==0) cttsNeed=true; }
+  // --- sample layout inside mdat ---
+  let dataLen=0; for(const f of frames) dataLen+=f.data.length;
+  const mdatH=(8+dataLen<0xFFFFFFFF)
+    ? [mp4U32(8+dataLen),mp4ascii('mdat')]
+    : [mp4U32(1),mp4ascii('mdat'),mp4U32(Math.floor((8+dataLen)/4294967296)),mp4U32((8+dataLen)%4294967296)];
+  let hlen=0; for(const p of mdatH) hlen+=p.length;
+  const offs=new Array(n); let pos=0;
+  for(let i=0;i<n;i++){ offs[i]=pos; pos+=frames[i].data.length; }
+  const MAT=[mp4U32(0x10000),mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(0x10000),mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(0x40000000)];
+  const ftyp=mp4box('ftyp',[mp4ascii('isom'),mp4U32(0x200),mp4ascii('isom'),mp4ascii('iso2'),mp4ascii('avc1'),mp4ascii('mp41')]);
+  const mdatOff=ftyp.length+hlen;
+  const mvhd=mp4box('mvhd',[mp4n(0,1),mp4n(0,3),mp4U32(0),mp4U32(0),mp4U32(TS),mp4U32(n*DUR),
+    mp4U32(0x10000),mp4U16(0x100),mp4U16(0),mp4U32(0),mp4U32(0),
+    ...MAT,mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(0),mp4U32(2)]);
+  const tkhd=mp4box('tkhd',[mp4n(0,1),mp4n(0,3),mp4U32(0),mp4U32(0),mp4U32(1),mp4U32(0),mp4U32(n*DUR),mp4U32(0),mp4U32(0),
+    mp4n(0,2),mp4n(0,2),mp4U16(0),mp4U16(0),...MAT,mp4U32(W*65536),mp4U32(H*65536)]);
+  const mdhd=mp4box('mdhd',[mp4n(0,1),mp4n(0,3),mp4U32(0),mp4U32(0),mp4U32(TS),mp4U32(n*DUR),mp4U16(0x55C4),mp4U16(0)]);
+  const hdlr=mp4box('hdlr',[mp4n(0,1),mp4n(0,3),mp4U32(0),mp4ascii('vide'),mp4U32(0),mp4U32(0),mp4U32(0),mp4ascii('VideoHandler\0')]);
+  const vmhd=mp4box('vmhd',[mp4n(0,1),mp4n(1,3),mp4U16(0),mp4U16(0),mp4U16(0),mp4U16(0)]);
+  const dref=mp4box('dref',[mp4n(0,1),mp4n(0,3),mp4U32(1),mp4box('url ',[mp4n(0,1),mp4n(1,3)])]);
+  const cname=new Uint8Array(32); // empty pascal-string compressor name
+  const avc1=mp4box('avc1',[new Uint8Array(6),mp4U16(1),mp4U16(0),mp4U16(0),mp4U32(0),mp4U32(0),mp4U32(0),
+    mp4U16(W),mp4U16(H),mp4U32(0x480000),mp4U32(0x480000),mp4U32(0),mp4U16(1),cname,mp4U16(0x18),mp4n(-1,2),
+    mp4box('avcC',[avcC])]);
+  const stsd=mp4box('stsd',[mp4n(0,1),mp4n(0,3),mp4U32(1),avc1]);
+  const stts=mp4box('stts',[mp4n(0,1),mp4n(0,3),mp4U32(1),mp4U32(n),mp4U32(DUR)]);
+  const stblKids=[stsd,stts];
+  if(cttsNeed){
+    const cparts=[mp4n(1,1),mp4n(0,3),mp4U32(n)];
+    for(let i=0;i<n;i++){ cparts.push(mp4U32(1),mp4I32(frames[i].ctts)); }
+    stblKids.push(mp4box('ctts',cparts));
+  }
+  const syncs=[]; for(let i=0;i<n;i++) if(frames[i].key) syncs.push(mp4U32(i+1));
+  stblKids.push(mp4box('stss',[mp4n(0,1),mp4n(0,3),mp4U32(syncs.length),...syncs]));
+  stblKids.push(mp4box('stsc',[mp4n(0,1),mp4n(0,3),mp4U32(1),mp4U32(1),mp4U32(1),mp4U32(1)])); // 1 sample/chunk
+  const sizes=[]; for(const f of frames) sizes.push(mp4U32(f.data.length));
+  stblKids.push(mp4box('stsz',[mp4n(0,1),mp4n(0,3),mp4U32(0),mp4U32(n),...sizes]));
+  const co=[]; for(let i=0;i<n;i++) co.push(mp4U32(offs[i]+mdatOff));
+  stblKids.push(mp4box('stco',[mp4n(0,1),mp4n(0,3),mp4U32(n),...co]));
+  const moov=mp4box('moov',[mvhd,mp4box('trak',[tkhd,mp4box('mdia',[mdhd,hdlr,mp4box('minf',[vmhd,mp4box('dinf',[dref]),mp4box('stbl',stblKids)])])])]);
+  const parts=[ftyp,...mdatH];
+  for(const f of frames) parts.push(f.data);
+  parts.push(moov);
+  let total=0; for(const p of parts) total+=p.length;
+  const out=new Uint8Array(total); let o=0;
+  for(const p of parts){ out.set(p,o); o+=p.length; }
+  return out;
+}
+/* --- end @render-muxer --- */
+
+const RENDER_CODECS=['avc1.42E01E','avc1.4D401F','avc1.640028']; // baseline first: never reorders (B-frames impossible)
+async function renderVideo(){
+  const fps=CFG.fps, total=Math.min(50000,Math.max(1,Math.round(CFG.render*fps)));
+  if(typeof VideoEncoder==='undefined'||typeof VideoFrame==='undefined'){ vstat('RENDER FAILED: NO WEBCODECS (TRY CHROME/EDGE)'); return; }
+  vstat('RENDER 0% · PROBING ENCODER');
+  let codec=null;
+  for(const c of RENDER_CODECS){
+    try{
+      const s=await VideoEncoder.isConfigSupported({codec:c,width:W,height:H,bitrate:800000,framerate:fps,avc:{format:'avc'}});
+      if(s.supported){ codec=c; break; }
+    }catch(e){/* try next */}
+  }
+  if(!codec){ vstat('RENDER FAILED: NO H.264 ENCODER'); return; }
+  paused=false; // frames must advance even with ?pause=1
+  const bitrate=Math.min(20000000,Math.max(500000,Math.round(W*H*fps*0.15)));
+  const TS=Math.round(fps*1000);
+  const frames=[]; let avcC=null, encErr=null;
+  const enc=new VideoEncoder({
+    output:(chunk,meta)=>{
+      const buf=new Uint8Array(chunk.byteLength); chunk.copyTo(buf);
+      if(meta&&meta.decoderConfig&&meta.decoderConfig.description) avcC=new Uint8Array(meta.decoderConfig.description);
+      frames.push({data:buf,key:chunk.type==='key',pts:Math.round(chunk.timestamp*TS/1e6)});
+    },
+    error:e=>{ encErr=e; },
+  });
+  enc.configure({codec,width:W,height:H,bitrate,framerate:fps,avc:{format:'avc'},latencyMode:'quality'});
+  const dt=1/fps, keyEvery=Math.max(1,Math.round(fps));
+  const waitDq=()=>new Promise(res=>{ const h=()=>{ enc.removeEventListener('dequeue',h); res(); }; enc.addEventListener('dequeue',h); });
+  for(let i=0;i<total&&!encErr;i++){
+    if(enc.encodeQueueSize>6) await waitDq();       // backpressure only; never paced to realtime
+    update(dt); render();
+    const vf=new VideoFrame(cv,{timestamp:Math.round(i*1e6/fps)});
+    enc.encode(vf,{keyFrame:i%keyEvery===0});
+    vf.close();
+    if(i%15===0){ vstat('RENDER '+Math.round(i/total*100)+'% · '+i+'/'+total+'F @ '+fps+'FPS'); await new Promise(r=>setTimeout(r,0)); }
+  }
+  if(!encErr) await enc.flush();
+  try{ enc.close(); }catch(e){}
+  if(encErr){ vstat('RENDER FAILED: '+String((encErr&&encErr.message)||encErr).slice(0,120).toUpperCase()); return; }
+  if(!frames.length||!avcC){ vstat('RENDER FAILED: ENCODER RETURNED NO DATA'); return; }
+  const mp4=muxMP4(frames,avcC,fps);
+  const blob=new Blob([mp4],{type:'video/mp4'});
+  const url=URL.createObjectURL(blob);
+  const fname='night-run_'+CFG.render+'s_'+fps+'fps.mp4';
+  const a=document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+  vstat('DONE · '+frames.length+'F · '+(mp4.length/1048576).toFixed(1)+'MB · <a href="'+url+'" download="'+fname+'">SAVE '+fname.toUpperCase()+'</a>');
+}
 function setTheme(i){ themeIdx=((i%THEMES.length)+THEMES.length)%THEMES.length; P=THEMES[themeIdx]; buildSky(); }
 window.addEventListener('keydown',e=>{
+  if(RENDER.active) return; // off the gas while rendering
   const k=e.key.toLowerCase();
   if(k===' '){ paused=!paused; e.preventDefault(); }
   else if(k==='u') units=units==='mph'?'kmh':'mph';
@@ -828,7 +973,8 @@ function frame(ts){
 init(CFG.seed!==null?CFG.seed:((Math.random()*1e9)|0));
 zc=player.z-7;
 syncURL();
-requestAnimationFrame(frame);
+if(RENDER.active) renderVideo();   // ?render=N: export mp4 instead of playing live
+else requestAnimationFrame(frame);
 /*@@DEBUG*/
 })();
 </script>
