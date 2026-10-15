@@ -1,17 +1,7 @@
 [
   {
-    "name": "Beep Beep I'm a Sheep.mid",
-    "size": 4182,
-    "extension": "mid"
-  },
-  {
-    "name": "atlas.json",
-    "size": 578,
-    "extension": "json"
-  },
-  {
-    "name": "Pirates of the Caribbean.mid",
-    "size": 11918,
+    "name": "RickRoll.mid",
+    "size": 67477,
     "extension": "mid"
   },
   {
@@ -20,18 +10,28 @@
     "extension": "mid"
   },
   {
-    "name": "RickRoll.mid",
-    "size": 67477,
+    "name": "tetris.mid",
+    "size": 16647,
     "extension": "mid"
+  },
+  {
+    "name": "Beep Beep I'm a Sheep.mid",
+    "size": 4182,
+    "extension": "mid"
+  },
+  {
+    "name": "Pirates of the Caribbean.mid",
+    "size": 11918,
+    "extension": "mid"
+  },
+  {
+    "name": "atlas.json",
+    "size": 578,
+    "extension": "json"
   },
   {
     "name": "sus.mid",
     "size": 2320,
-    "extension": "mid"
-  },
-  {
-    "name": "tetris.mid",
-    "size": 16647,
     "extension": "mid"
   }
 ]
