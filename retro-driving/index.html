@@ -37,8 +37,9 @@ const DASH_Y = 188;
 const K = 540;           // depth constant:  d = K / (y - H0)
 const F = 120;           // focal length in px (sprite scale = F / d)
 const LPK = 0.822;       // lane width in px per (y - H0)   (3.7 m lane)
-const KMAX = 1.5e-3;     // max road curvature (lanes / m^2)
-const VMAX = 100;        // m/s at full speed bar (= 224 mph)
+let KMAX = 1.5e-3;       // max road curvature (lanes / m^2)   [?curves]
+let VMAX = 100;          // m/s at full speed bar (= 224 mph)   [?speed]
+let MAXEXTRA = 3;        // max extra lanes a+b (0..3)          [?lanes]
 const SMIN = -3, SMAX = 4;
 const SKY_W = 640;
 
@@ -143,6 +144,85 @@ let world, sim, cars, player;
 let t=0, zc=0, camL=0, skyX=0, units='mph', paused=false, throttle=0, avgV=40, totalT=0;
 let trip, arrived=false, arriveT=0, tripNo=1, skySeed=1, sky=null, seedBase=1;
 
+/* ---------------- query-string config ----------------
+   Everything tweakable can be set from the URL, e.g.
+   ?seed=42&traffic=1.5&speed=1.2&curves=0.5&lanes=2&trip=4000
+     &palette=amber&units=kmh&scanlines=0&pause=1&sky=7&hint=0
+
+   seed      world seed (int)          traffic   car density 0..4 (1 = default)
+   speed     pace 0.25..3              curves    road curvature 0.05..4
+   lanes     extra lanes 0..3          trip      trip length in m (0 = random)
+   palette   green|amber|cyan|0-2      units     mph|kmh
+   scanlines 0/1                       pause     0/1 (start paused)
+   sky       skyline variant (int)     hint      0/1 (bottom key hints)
+
+   Only non-default values are written back to the address bar, and any
+   unknown params in the URL are preserved.
+   ------------------------------------------------------ */
+const QS = new URLSearchParams(location.search);
+function qnum(k,d,min,max){ const v=parseFloat(QS.get(k)); return Number.isFinite(v)?clamp(v,min,max):d; }
+function qflag(k,d){
+  const v=QS.get(k);
+  if(v===null) return d;
+  if(v==='') return true;                     // bare ?flag = on
+  return !/^(0|false|off|no)$/i.test(v);
+}
+function qint(k){ const v=QS.get(k); const n=v===null?NaN:parseInt(v,10); return Number.isFinite(n)?n:null; }
+const THEME_NAMES={ green:0, amber:1, gold:1, orange:1, cyan:2, ice:2, blue:2 };
+function qtheme(){
+  const v=String(QS.get('palette')!==null?QS.get('palette'):(QS.get('theme')||'')).trim().toLowerCase();
+  if(!v) return 0;
+  if(v in THEME_NAMES) return THEME_NAMES[v];
+  const n=parseInt(v,10);
+  return Number.isFinite(n)?((n%THEMES.length)+THEMES.length)%THEMES.length:0;
+}
+const CFG = {
+  seed:    qint('seed'),
+  sky:     qint('sky'),
+  traffic: qnum('traffic',1,0,4),
+  speed:   qnum('speed',1,0.25,3),
+  curves:  qnum('curves',1,0.05,4),
+  lanes:   Math.round(qnum('lanes',3,0,3)),
+  trip:    Math.round(qnum('trip',0,0,1e6)),
+  palette: qtheme(),
+  units:   /^(kmh|km|km\/h|metric)$/i.test(QS.get('units')||'')?'kmh':'mph',
+  scan:    qflag('scanlines',true),
+  pause:   qflag('pause',false),
+  hint:    qflag('hint',true),
+};
+KMAX *= CFG.curves;
+VMAX *= CFG.speed;
+MAXEXTRA = CFG.lanes;
+themeIdx = CFG.palette; P = THEMES[themeIdx];
+units = CFG.units;
+paused = CFG.pause;
+if(!CFG.scan) wrap.classList.remove('scan');
+if(!CFG.hint){
+  const he=document.getElementById('hint');
+  if(he) he.style.display='none';
+  wrap.style.width='min(100vw,calc(100vh * 4/3))';
+}
+let seedPinned = CFG.seed!==null;             // keep ?seed in the URL once chosen
+
+function syncURL(){
+  const q=QS;
+  const num=(k,v,d)=>{ if(v===d) q.delete(k); else q.set(k,String(v)); };
+  if(seedPinned) q.set('seed',String(seedBase)); else q.delete('seed');
+  num('traffic',CFG.traffic,1);
+  num('speed',CFG.speed,1);
+  num('curves',CFG.curves,1);
+  num('lanes',CFG.lanes,3);
+  num('trip',CFG.trip,0);
+  num('sky',CFG.sky,null);
+  if(themeIdx===0) q.delete('palette'); else q.set('palette',String(themeIdx));
+  if(units==='mph') q.delete('units'); else q.set('units',units);
+  if(wrap.classList.contains('scan')) q.delete('scanlines'); else q.set('scanlines','0');
+  if(paused) q.set('pause','1'); else q.delete('pause');
+  if(CFG.hint) q.delete('hint'); else q.set('hint','0');
+  const s=q.toString();
+  try{ history.replaceState(null,'',location.pathname+(s?'?'+s:'')+location.hash); }catch(e){}
+}
+
 function evalPL(arr,z){
   let hi=arr.length-1;
   if(z>=arr[hi][0]) return arr[hi][1];
@@ -155,11 +235,11 @@ function evalPL(arr,z){
 
 function genLanes(upto){
   const w=world, r=w.rng;
-  while(w.laneZ<upto){
+  while(w.laneZ<upto && MAXEXTRA>0){
     const zs=w.laneZ+180+r()*320;
     const total=w.a+w.b;
     let add;
-    if(total===0) add=true; else if(total>=3) add=false; else add=r()<0.5;
+    if(total===0) add=true; else if(total>=MAXEXTRA) add=false; else add=r()<0.5;
     const evs=[];
     let side;
     if(add){
@@ -339,7 +419,7 @@ function updateCar(c,dt){
   if(front){ const dg=6+c.v*0.42; if(gap<dg+30) target=Math.min(target,front.v+(gap-dg)*0.8); }
   if(c.mergeWait) target=Math.min(target,Math.max(0,c.v-18));
   target=Math.max(0,target);
-  const a=clamp((target-c.v)*1.1,-14,c.player?5:4.5);
+  const a=clamp((target-c.v)*1.1,-14*CFG.speed,(c.player?5:4.5)*CFG.speed);
   c.v=Math.max(0,c.v+a*dt); c.accel=a; c.braking=a<-3;
   c.z+=c.v*dt;
   const tl=slotC(c.slot,c.z);
@@ -357,7 +437,7 @@ function spawnCar(z,fast){
   for(const o of cars) if(Math.abs(o.z-z)<48 && Math.abs(o.lat-cen)<0.9) return false;
   const r=sim();
   const type=r<0.16?'truck':r<0.36?'sports':'sedan';
-  const v=fast?(76+sim()*22):(type==='truck'?(28+sim()*14):(34+sim()*34));
+  const v=(fast?(76+sim()*22):(type==='truck'?(28+sim()*14):(34+sim()*34)))*CFG.speed;
   const color=type==='truck'?'#d9e8d9':CAR_COLORS[(sim()*CAR_COLORS.length)|0];
   cars.push(makeCar({type,color,slot:s,z,v,desired:v}));
   return true;
@@ -367,7 +447,7 @@ function trySpawn(){
   let n=0;
   for(const c of cars) if(!c.player && c.z>p.z-200 && c.z<p.z+700) n++;
   const lanes=2+evalPL(world.A,p.z+300)+evalPL(world.B,p.z+300);
-  if(n<8+lanes*3){
+  if(n<(8+lanes*3)*CFG.traffic){
     const behind=sim()<0.16;
     const z=behind?(p.z-120-sim()*120):(p.z+560+sim()*160);
     spawnCar(z,behind);
@@ -382,14 +462,14 @@ function init(seed){
   world={ A:[[-1e7,0]], B:[[-1e7,0]], CV:[[-1e7,0]], a:0, b:0, laneZ:0, curveZ:0, rng:mulberry32(seed) };
   sim=mulberry32(seed^0xA5A5A5);
   cars=[];
-  player=makeCar({type:'sports',color:'#ff2d2d',slot:1,z:0,v:34,desired:60,player:true});
+  player=makeCar({type:'sports',color:'#ff2d2d',slot:1,z:0,v:34*CFG.speed,desired:60*CFG.speed,player:true});
   player.cool=3; player.goalT=14;
   cars.push(player);
   genLanes(1500); genCurves(1500);
-  for(let i=0;i<40;i++) spawnCar(45+sim()*620,false);
+  for(let i=0;i<Math.round(40*CFG.traffic);i++) spawnCar(45+sim()*620,false);
   t=0; totalT=0; skyX=0; camL=player.lat; throttle=0.3; avgV=45;
-  trip={start:0,len:5000+sim()*5000}; arrived=false; tripNo=1;
-  skySeed=seed*7+3; buildSky();
+  trip={start:0,len:CFG.trip>0?CFG.trip:5000+sim()*5000}; arrived=false; tripNo=1;
+  skySeed=CFG.sky!==null?CFG.sky:seed*7+3; buildSky();
 }
 
 function update(dt){
@@ -400,7 +480,7 @@ function update(dt){
 
   // player cruising speed: wanders, slows in tight curves
   let des=60+28*Math.sin(t*0.11)+10*Math.sin(t*0.37+1);
-  des=clamp(des,45,98);
+  des=clamp(des,45,98)*CFG.speed;
   const kk=Math.abs(evalPL(world.CV,p.z+60));
   des*=1-0.22*Math.min(1,kk/KMAX);
   p.desired=des;
@@ -424,7 +504,7 @@ function update(dt){
     if(p.z-trip.start>=trip.len){ arrived=true; arriveT=4; }
   } else {
     arriveT-=dt;
-    if(arriveT<=0){ trip={start:p.z,len:5000+sim()*6000}; arrived=false; tripNo++; }
+    if(arriveT<=0){ trip={start:p.z,len:CFG.trip>0?CFG.trip:5000+sim()*6000}; arrived=false; tripNo++; }
   }
 }
 
@@ -732,9 +812,11 @@ window.addEventListener('keydown',e=>{
   else if(k==='u') units=units==='mph'?'kmh':'mph';
   else if(k==='c') setTheme(themeIdx+1);
   else if(k==='s') wrap.classList.toggle('scan');
-  else if(k==='r') init((Math.random()*1e9)|0);
+  else if(k==='r'){ seedPinned=true; init((Math.random()*1e9)|0); }
+  else return;
+  syncURL();
 });
-cv.addEventListener('click',()=>{ units=units==='mph'?'kmh':'mph'; });
+cv.addEventListener('click',()=>{ units=units==='mph'?'kmh':'mph'; syncURL(); });
 
 let last=0;
 function frame(ts){
@@ -743,8 +825,9 @@ function frame(ts){
   render();
   requestAnimationFrame(frame);
 }
-init((Math.random()*1e9)|0);
+init(CFG.seed!==null?CFG.seed:((Math.random()*1e9)|0));
 zc=player.z-7;
+syncURL();
 requestAnimationFrame(frame);
 /*@@DEBUG*/
 })();
