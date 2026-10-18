@@ -3396,7 +3396,7 @@ class GameEngine {
         if (this.settings.gamemode === 'hosted') {
             const hostedUsername = $('hosted-username').value.trim();
             const hostedPassword = $('hosted-password').value;
-            const storedToken = localStorage.getItem('mm_hosted_token');
+            const storedToken = false; //localStorage.getItem('mm_hosted_token');
             
             // Use stored token if available (tokens persist on server across restarts now)
             if (storedToken) {
@@ -6924,6 +6924,13 @@ class NetworkManager {
 
     update() {
         if (this.isSingleplayer) return;
+
+        // Hosted mode: delegate to HostedNetwork.update()
+        if (this.useHosted && this.hostedNet) {
+            this.hostedNet.update();
+            return;
+        }
+
         let n = now();
         const netConf = GameConfig.get('Network');
 
@@ -7096,6 +7103,11 @@ class NetworkManager {
     broadcastDeath() { this.publish('chat', { type: 'death', id: Game.localPlayer.id, name: Game.settings.username }); }
     sendFuel(targetId, amount) { this.publish('ctrl', { type: 'fuel', to: targetId, from: Game.settings.username, amt: amount }); }
     sendTileUpdate(x, y, type) {
+        // Hosted mode: send as JSON via WebSocket
+        if (this.useHosted && this.hostedNet) {
+            this.hostedNet.sendTileUpdate(x, y, type);
+            return;
+        }
         // Send as a small 3-value binary packet: [x, y, val]
         this.publish('map_bin', new Uint16Array([x, y, type]));
     }
@@ -7178,6 +7190,15 @@ class NetworkManager {
     }
 
     publish(sub, payload) {
+        // 0. Hosted mode: delegate to HostedNetwork.send() via WebSocket
+        if (this.useHosted && this.hostedNet) {
+            // Binary payloads (Uint16Array) are not used in hosted mode
+            if (!ArrayBuffer.isView(payload)) {
+                this.hostedNet.send(payload);
+            }
+            return;
+        }
+
         // 1. Check for Singleplayer Redirection
         if (Network.isSingleplayer) {
             const topic = `${this.baseTopic}${Game.settings.room}/${sub}`;

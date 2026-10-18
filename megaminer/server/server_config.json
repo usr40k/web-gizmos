@@ -31,7 +31,8 @@
         "max_username_length": 16,
         "min_password_length": 4,
         "users": {
-            "default": "default"
+            "default": "default",
+            "default2": "default2"
         }
     },
     "paths": {
