@@ -1,7 +1,6 @@
 **Gameplay Enhancements:**
 - [ ] **Research/Tech Tree** - Unlock specialized drill types (plasma, laser, seismic) with unique properties beyond simple tier upgrades
 - [x] **Crafting System** - Combine raw ores into refined materials (e.g., iron ingots, glass, alloys) for higher-value sales
-- [ ] **Vehicles/Ships** - Multiple vehicle types (fast scout, heavy hauler, deep-sea sub) with different stats
 - [x] **Depth Zones & Biomes** - Distinct underground biomes (crystal caverns, magma fields, fossil beds) with unique ores and hazards
 - [x] **Random Events** - Cave-ins, gas pockets, treasure vaults, asteroid showers, underground lakes
 - [x] **Falling Blocks** - Gravel and sand that collapse when supporting block is removed
@@ -21,7 +20,7 @@
 
 **Quality of Life:**
 - [x] **Auto-sell Thresholds** - Configure inventory to auto-sell specific ores when cargo is full
-- [ ] **Waypoints & Markers** - Save locations, mark points of interest on minimap
+- [x] **Waypoints & Markers** - Save locations, mark points of interest on minimap
 - [x] **Blueprint System** - Save and share tunnel/structure designs
 - [x] **Statistics Dashboard** - Detailed play stats (depth records, ore breakdown, efficiency metrics)
 - [x] **Keybind Customization** - Full control rebinding with profiles
@@ -32,6 +31,6 @@
 
 **Visual & Audio Polish:**
 - [ ] **Drill Customization** - Visual drill models/colors, particle effects, sound packs
-- [ ] **Weather Effects** - Underground storms, ash falls, glowing spore clouds
-- [ ] **Ambient Sounds** - Depth-based ambient audio (dripping water, distant rumblings, creature sounds)
+- [x] **Weather Effects** - Underground storms, ash falls, glowing spore clouds
+- [x] **Ambient Sounds** - Depth-based ambient audio (dripping water, distant rumblings, creature sounds)
 - [ ] **Biome-Specific Music** - Dynamic soundtrack changes based on depth/zone
