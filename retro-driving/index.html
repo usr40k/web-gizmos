@@ -56,9 +56,27 @@ const THEMES = [
   { hi:'#58ff6a', mid:'#2bb83f', dim:'#145e24', dark:'#0b3315', warn:'#ffd23a', hot:'#ff4b3a' },
   { hi:'#ffc43a', mid:'#d98a14', dim:'#7a4a0a', dark:'#3a2205', warn:'#ff7a2a', hot:'#ff3b2a' },
   { hi:'#6ff3ff', mid:'#2fb6d0', dim:'#14607a', dark:'#082e3a', warn:'#ffd23a', hot:'#ff4b6a' },
+
+  // Cyberpunk Neon (Electric Purple & Pink)
+  { hi: '#d8b4fe', mid: '#a855f7', dim: '#6b21a8', dark: '#3b0764', warn: '#fde047', hot: '#f43f5e' },
+
+  // Midnight Ocean (Deep Teal & Cyan)
+  { hi: '#38bdf8', mid: '#0ea5e9', dim: '#0369a1', dark: '#0c4a6e', warn: '#facc15', hot: '#fb7185' },
+
+  // Sunset Blaze (Vibrant Magenta & Coral)
+  { hi: '#fb7185', mid: '#f43f5e', dim: '#9f1239', dark: '#4c0519', warn: '#fde047', hot: '#ff2255' },
+
+  // Monochrome Matrix (Crisp White & Slate)
+  { hi: '#f8fafc', mid: '#cbd5e1', dim: '#64748b', dark: '#1e293b', warn: '#facc15', hot: '#ef4444' }
 ];
 let themeIdx = 0, P = THEMES[0];
-const CAR_COLORS = ['#ff55dd','#5a78ff','#33e6ff','#ffd23a','#ff8a2a','#b8ff5a','#e6f0e6','#c05aff'];
+const CAR_COLORS = [
+  // Original 8
+  '#ff55dd','#5a78ff','#33e6ff','#ffd23a','#ff8a2a','#b8ff5a','#e6f0e6','#c05aff',
+  
+  // New 8
+  '#ff3b5c', '#00ffb3', '#ff9900', '#9d4edd', '#00f0ff', '#ffcc00', '#ff66b2', '#e2e8f0'
+];
 
 /* ---------------- tiny helpers ---------------- */
 function mulberry32(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
@@ -1560,7 +1578,7 @@ function drawDash(){
   const act=roadAction(), blink=((t*4)|0)&1;
   const ic=act.urgent&&blink?P.warn:P.hi;
   if(act.stop){ drawText('STOP',118,209,blink?P.hot:P.dark,2); }
-  else { arrow(118,207,ICONS[act.k],ic); if(act.txt) drawText(act.txt,146,222,P.warn); }
+  else { arrow(118,204,ICONS[act.k],ic); if(act.txt) drawText(act.txt,146,219,P.warn); }
 
   // --- speed number + unit (right, under bar)
   const sp=String(Math.round(p.v*(u?2.23694:3.6)));
