@@ -564,7 +564,9 @@ class PlayerState:
         self.websocket = websocket
         self.username = username
         self.account_token = account_token
-        self.player_id = str(uuid.uuid4())
+        # Player id == username: it is the key used for rooms/kick/trade/fuel,
+        # so clients and server always agree on identity.
+        self.player_id = username
         self.joined_at = time.time()
         self.last_heartbeat = time.time()
 
@@ -1072,7 +1074,7 @@ class MegaMinerServer:
         finally:
             # Cleanup on disconnect
             if username and room_id:
-                await self.handle_disconnect(username, room_id)
+                await self.handle_disconnect(username, room_id, player)
 
     # ========================================================================
     # ACCOUNT HANDLING
@@ -1157,11 +1159,13 @@ class MegaMinerServer:
             if old_room and username in old_room.players:
                 # Replace old connection
                 old_player = old_room.players[username]
+                # Remove first: the old socket's cleanup runs concurrently and
+                # may already have removed it (and must not remove the new one).
+                old_room.players.pop(username, None)
                 try:
                     await old_player.websocket.close()
                 except Exception:
                     pass
-                del old_room.players[username]
                 print(f"[Reconnect] {username} reconnecting")
 
         # Get or create room (always uses world_name)
@@ -1222,7 +1226,6 @@ class MegaMinerServer:
         # Determine admin (first player to join)
         if room.admin is None:
             room.admin = username
-            player.player_id = username  # Admin gets a stable ID
 
         # Add to room
         room.players[username] = player
@@ -1241,6 +1244,7 @@ class MegaMinerServer:
             "username": username,
             "playerId": player.player_id,
             "isAdmin": username == room.admin,
+            "adminId": room.admin,
             "players": [p.to_dict() for p in room.players.values()],
             "bannedIds": world.get("banned_ids", []),
             "proceduralSeed": world.get("procedural_seed", 0)
@@ -1318,6 +1322,14 @@ class MegaMinerServer:
 
         elif msg_type == "heartbeat":
             player.last_heartbeat = time.time()
+            # Relay as a position packet so idle players stay visible
+            # (clients drop players they have not heard from in 15s).
+            room = self.rooms.get(room_id)
+            packet = player.to_move_packet()
+            packet["tx"] = player.grid_x * DEFAULT_CONFIG['game']['tile_size']
+            packet["ty"] = player.grid_y * DEFAULT_CONFIG['game']['tile_size']
+            packet["isAdmin"] = bool(room and room.admin == player.username)
+            await self.broadcast_to_room(room_id, packet, exclude=player.username)
 
         elif msg_type == "chat":
             await self.handle_chat(player, room_id, message)
@@ -1442,7 +1454,7 @@ class MegaMinerServer:
             "id": player.player_id,
             "name": player.username,
             "msg": msg_text
-        })
+        }, exclude=player.username)
 
     async def handle_tile_update(self, player, room_id, message):
         """Handle single tile update."""
@@ -1585,12 +1597,12 @@ class MegaMinerServer:
                     "type": "kick",
                     "target": target.player_id
                 })
-                await target.websocket.close()
                 del room.players[target_username]
                 self.player_rooms.pop(target_username, None)
+                await target.websocket.close()
                 await self.broadcast_to_room(room_id, {
-                    "type": "system_msg",
-                    "message": f"{target_username} was kicked"
+                    "type": "kick",
+                    "target": target.player_id
                 })
 
         elif action == "ban":
@@ -1605,9 +1617,13 @@ class MegaMinerServer:
                     "type": "kick",
                     "target": target.player_id
                 })
-                await target.websocket.close()
                 del room.players[target_username]
                 self.player_rooms.pop(target_username, None)
+                await target.websocket.close()
+                await self.broadcast_to_room(room_id, {
+                    "type": "kick",
+                    "target": target.player_id
+                })
 
         elif action == "transfer_admin":
             if target_username in room.players:
@@ -1649,11 +1665,16 @@ class MegaMinerServer:
     # DISCONNECT HANDLING
     # ========================================================================
 
-    async def handle_disconnect(self, username, room_id):
+    async def handle_disconnect(self, username, room_id, player=None):
         """Handle player disconnection."""
         room = self.rooms.get(room_id)
         if not room:
             self.player_rooms.pop(username, None)
+            return
+
+        # A newer connection may already own this username (reconnect/replace);
+        # the stale socket must not remove it or announce a leave.
+        if player is not None and room.players.get(username) is not player:
             return
 
         # Save player data before removing

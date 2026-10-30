@@ -3503,20 +3503,33 @@ class GameEngine {
             } else if (hostedUsername && hostedPassword) {
                 // No stored token - authenticate with credentials
                 this.logConnection(`Authenticating with hosted server...`);
-                const serverUrl = $('hosted-server-url').value.trim() || 'ws://localhost:4242';
+                const serverUrl = this.normalizeServerUrl($('hosted-server-url').value);
+                let authError = null;
                 try {
                     const authResult = await this.hostedAuthenticate(serverUrl, hostedUsername, hostedPassword);
                     if (!authResult.success) {
-                        this.logConnection(`Auth failed: ${authResult.message}`);
-                        UI.showToast(`Auth failed: ${authResult.message}`, "error");
+                        authError = authResult.message;
                     } else {
                         this.logConnection(`Authenticated as ${authResult.username}`);
                         localStorage.setItem('mm_hosted_token', authResult.token);
                         localStorage.setItem('mm_hosted_username', authResult.username);
                         $('start-username').value = authResult.username;
+                        // settings/localPlayer were captured before auth - refresh them
+                        this.settings.username = authResult.username;
+                        this.localPlayer.username = authResult.username;
+                        GameConfig.set('PlayerSettings.username', authResult.username);
                     }
                 } catch (e) {
-                    this.logConnection(`Auth connection failed: ${e}`);
+                    authError = `Auth connection failed: ${e}`;
+                }
+                if (authError) {
+                    // Don't join with a stale token/identity - go back and let the user retry
+                    this.logConnection(`Auth failed: ${authError}`);
+                    UI.showToast(`Auth failed: ${authError}`, "error");
+                    try { localStorage.removeItem('mm_hosted_token'); localStorage.removeItem('mm_hosted_username'); } catch (e) {}
+                    $('connection-screen').style.display = 'none';
+                    $('start-screen').style.display = '';
+                    return;
                 }
             } else {
                 this.logConnection("No credentials provided. Joining as guest...");
@@ -3532,6 +3545,17 @@ class GameEngine {
 
         // Start a new session tracking if none exists
         if (!SaveSystem.currentSaveId) SaveSystem.currentSaveId = Date.now();
+    }
+
+    normalizeServerUrl(raw) {
+        let url = (raw || '').trim() || 'ws://localhost:4242';
+        if (/^https?:\/\//i.test(url)) url = url.replace(/^http/i, 'ws');
+        if (!/^wss?:\/\//i.test(url)) url = 'ws://' + url;
+        // Browsers refuse insecure ws:// from an https page, except for localhost
+        if (location.protocol === 'https:' && /^ws:\/\//i.test(url) && !/^ws:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(url)) {
+            url = url.replace(/^ws:/i, 'wss:');
+        }
+        return url;
     }
 
     async hostedAuthenticate(serverUrl, username, password) {
@@ -3646,7 +3670,10 @@ class GameEngine {
             this.localPlayer.stats.startTime = now();
 
             // Initial Host Check: If I'm alone, I am Admin.
-            if (Object.keys(this.remotePlayers).length === 0) {
+            // (Hosted mode: the server already told us in join_result - keep that.)
+            if (this.settings.gamemode === 'hosted') {
+                UI.updateAdminPanel();
+            } else if (Object.keys(this.remotePlayers).length === 0) {
                 this.isAdmin = true;
                 this.hostId = this.localPlayer.id;
                 this.lastHostHeartbeat = Date.now();
@@ -5632,7 +5659,7 @@ class GameEngine {
             this.spawnParticle(tipWorldX, tipWorldY, tileColor, 5);
         }
 
-        if (!isLocal && this.settings.showSelfName) {
+        if (!isLocal && this.settings.showPlayerNames !== false) {
             this.ctx.rotate(-p.rotation);
             this.ctx.fillStyle = '#fff';
             this.ctx.font = UI.getFontSize('--fs-md') + ' Geo';
@@ -6840,7 +6867,15 @@ class HostedNetwork {
         switch (msg.type) {
             case "join_result":
                 if (msg.success) {
-                    Game.hostId = msg.playerId;
+                    // Adopt the server's identity: ids/usernames in every other packet are the server's
+                    if (msg.playerId) Game.localPlayer.id = msg.playerId;
+                    if (msg.username) {
+                        Game.settings.username = msg.username;
+                        Game.localPlayer.username = msg.username;
+                        try { localStorage.setItem('mm_hosted_username', msg.username); } catch (e) {}
+                    }
+                    Game.hostId = msg.adminId || msg.playerId;
+                    Game.lastHostHeartbeat = now();
                     Game.isAdmin = msg.isAdmin || false;
                     if (Game.isAdmin) {
                         UI.showToast("Room Created. You are the Admin.", "success");
@@ -6856,6 +6891,8 @@ class HostedNetwork {
                                     color: p.color,
                                     x: 0, y: 0,
                                     targetX: 0, targetY: 0,
+                                    gridX: 0, gridY: 0,
+                                    rotation: 0,
                                     joinedAt: p.joinedAt,
                                     lastSeen: now()
                                 };
@@ -6877,6 +6914,7 @@ class HostedNetwork {
                 } else {
                     UI.showToast("Join failed: " + msg.message, "error");
                     Game.logConnection("Join failed: " + msg.message);
+                    try { localStorage.removeItem('mm_hosted_token'); } catch (e) {}
                 }
                 break;
 
@@ -7126,14 +7164,15 @@ class HostedNetwork {
         }
         const rp = Game.remotePlayers[msg.id];
         rp.lastSeen = now();
-        if (msg.username && rp.username === "Unknown") rp.username = msg.username;
-        rp.color = msg.col;
+        if (msg.col) rp.color = msg.col;
+        if (msg.username) rp.username = msg.username;
         rp.rotation = msg.r;
         rp.isDrilling = msg.drill;
         rp.gridX = msg.gx;
         rp.gridY = msg.gy;
         rp.targetX = msg.tx;
         rp.targetY = msg.ty;
+        if (msg.joinedAt) rp.joinedAt = msg.joinedAt;
         if (Math.abs(rp.x - rp.targetX) > 100 || Math.abs(rp.y - rp.targetY) > 100) {
             rp.x = rp.targetX;
             rp.y = rp.targetY;
@@ -7301,10 +7340,15 @@ class NetworkManager {
             this.hostedNet = new HostedNetwork();
             window.HostedNet = this.hostedNet;
 
-            const serverUrl = $('hosted-server-url').value.trim() || 'ws://localhost:4242';
-            const storedUsername = localStorage.getItem('mm_hosted_username');
-            const username = storedUsername || $('start-username').value.trim() || 'Miner';
-            const token = localStorage.getItem('mm_hosted_token') || '';
+            const serverUrl = Game.normalizeServerUrl($('hosted-server-url').value);
+            // A token is only valid together with the account name it was issued for
+            let storedUsername = '', token = '';
+            try {
+                token = localStorage.getItem('mm_hosted_token') || '';
+                storedUsername = localStorage.getItem('mm_hosted_username') || '';
+            } catch (e) {}
+            if (!token || !storedUsername) { token = ''; storedUsername = ''; }
+            const username = storedUsername || $('hosted-username').value.trim() || Game.settings.username || 'Miner';
             const roomId = $('start-room').value.trim() || 'public';
             const color = $('start-color').value || '#3498db';
 
@@ -8783,7 +8827,7 @@ class UIManager {
         }
         $('hosted-account-status').innerText = 'Logging in...';
         // Create a temporary WebSocket to the hosted server for login
-        const serverUrl = $('hosted-server-url').value.trim() || 'ws://localhost:8765';
+        const serverUrl = Game.normalizeServerUrl($('hosted-server-url').value);
         try {
             const ws = new WebSocket(serverUrl);
             ws.onopen = () => {
@@ -8823,7 +8867,7 @@ class UIManager {
             return;
         }
         $('hosted-account-status').innerText = 'Registering...';
-        const serverUrl = $('hosted-server-url').value.trim() || 'ws://localhost:8765';
+        const serverUrl = Game.normalizeServerUrl($('hosted-server-url').value);
         try {
             const ws = new WebSocket(serverUrl);
             ws.onopen = () => {
@@ -9681,7 +9725,7 @@ const GameConfig = {
             gaugeStyle : 'classic',
             showCoords: true,
             mobileMode : ARGUMENTS.has('forceMobile') || false,
-            showSelfName : false,
+            showPlayerNames : true,
             gamemode : false,
             controlsReversed : false,
             keys: {
