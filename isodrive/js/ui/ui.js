@@ -28,7 +28,11 @@ export class UI {
       if (text && this.game) { this.game.transport.sendChat(text); this.chat(this.game.profile.name || 'me', text, true); }
     });
     $('menubtn').addEventListener('click', () => this.openMenu());
+    $('chatbtn').addEventListener('click', () => this.openChat());
+    $('chatinput').addEventListener('blur', () => setTimeout(() => $('chatform').classList.remove('open'), 150));
   }
+
+  openChat() { $('chatform').classList.add('open'); $('chatinput').focus(); }
 
   // ---------------------------------------------------------------- small stuff
   toast(text, ms = 1500) {
@@ -159,12 +163,13 @@ export class UI {
       el('p', { text: `Races ${g.profile.stats.races}  |  Coins ${g.profile.stats.coins}  |  ${g.profile.stats.km.toFixed(1)} km` }),
       el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
       el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
+      document.fullscreenEnabled ? el('button', { class: 'btn', text: 'Toggle fullscreen', onclick: () => { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); this.closeModal(); } }) : null,
       el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
     this.modal('Menu', body);
   }
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
-      el('p', { text: 'W/A/S/D or arrows: drive   Space: handbrake' }),
+      el('p', { text: document.body.classList.contains('touch') ? 'Touch: hold the arrow pads to steer, GAS to go, BRK for a handbrake drift, REV to brake and reverse. Tap the prompt at the bottom to refuel, shop or race.' : 'W/A/S/D or arrows: drive   Space: handbrake' }),
       el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   T: call a tow when out of fuel' }),
       el('p', { text: 'Enter: chat   Esc: menu' }),
       el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));

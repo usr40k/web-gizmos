@@ -29,13 +29,16 @@ export class Renderer {
     this.resize();
   }
 
+  // Integer scale in DEVICE pixels keeps pixel art crisp on any screen (retina phones included).
+  // Target a short side of ~260 logical pixels, so a portrait phone still shows a useful stretch of road.
   resize() {
-    const vh = window.innerHeight, vw = window.innerWidth;
-    const scale = Math.max(2, Math.round(vh / 270));
-    this.scale = scale;
-    this.cam.W = Math.ceil(vw / scale); this.cam.H = Math.ceil(vh / scale);
+    const dpr = window.devicePixelRatio || 1;
+    const dw = Math.round(window.innerWidth * dpr), dh = Math.round(window.innerHeight * dpr);
+    const ds = Math.max(2, Math.round(Math.min(dw, dh) / 260));
+    this.scale = ds / dpr;
+    this.cam.W = Math.ceil(dw / ds); this.cam.H = Math.ceil(dh / ds);
     this.canvas.width = this.cam.W; this.canvas.height = this.cam.H;
-    this.canvas.style.width = this.cam.W * scale + 'px'; this.canvas.style.height = this.cam.H * scale + 'px';
+    this.canvas.style.width = (this.cam.W * ds / dpr) + 'px'; this.canvas.style.height = (this.cam.H * ds / dpr) + 'px';
     this.ctx.imageSmoothingEnabled = false;
   }
 

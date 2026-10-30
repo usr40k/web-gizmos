@@ -15,6 +15,7 @@ const loadSettings = () => { try { return JSON.parse(localStorage.getItem(SETTIN
 const saveSettings = (s) => { try { localStorage.setItem(SETTINGS, JSON.stringify(s)); } catch { /* ignore */ } };
 
 async function main() {
+  if (matchMedia('(pointer: coarse)').matches || params.has('touch')) document.body.classList.add('touch');
   const ui = new UI();
   const reg = await loadContent({ extraNames: params.getAll('pack') });
   ui.contentProblems(reg);
@@ -56,7 +57,7 @@ async function main() {
   const input = new Input({
     interact: () => game && !ui.modalOpen && game.interact(),
     menu: () => (ui.modalOpen ? ui.closeModal() : ui.openMenu()),
-    chat: () => { if (!ui.modalOpen) document.getElementById('chatinput').focus(); },
+    chat: () => { if (!ui.modalOpen) ui.openChat(); },
     tow: () => game && !ui.modalOpen && game.tow(),
     garage: () => game && (ui.modalOpen ? ui.closeModal() : ui.openGarage(game)),
   });

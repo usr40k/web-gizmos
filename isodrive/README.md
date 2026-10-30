@@ -11,7 +11,7 @@ python3 -m http.server 8000      # from the repo root, then http://localhost:800
 ```
 
 Controls: W/A/S/D or arrows to drive, Space handbrake, E interact, G garage, T tow when out of fuel, Enter chat, Esc menu.
-Touch controls appear on phones and tablets.
+Touch controls appear on phones and tablets (add `?touch=1` to force them on a desktop browser).
 
 ## Layout
 
