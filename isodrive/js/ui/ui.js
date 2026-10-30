@@ -160,12 +160,28 @@ export class UI {
     const g = this.game; if (!g) return;
     const body = el('div', { class: 'menu' },
       el('p', { text: `Room: ${g.room}  |  ${g.transport.kind}${g.transport.userId ? '  |  ' + g.transport.userId : ''}` }),
+      this.storageBlock(g),
       el('p', { text: `Races ${g.profile.stats.races}  |  Coins ${g.profile.stats.coins}  |  ${g.profile.stats.km.toFixed(1)} km` }),
       el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
       el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
       document.fullscreenEnabled ? el('button', { class: 'btn', text: 'Toggle fullscreen', onclick: () => { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); this.closeModal(); } }) : null,
+      g.transport.kind === 'matrix' ? el('button', { class: 'btn', text: 'Log out', onclick: async () => { g.save(); await g.transport.logout(); const { forgetMatrixSessions } = await import('../net/session.js'); forgetMatrixSessions(g.transport.base, g.transport.userId); location.href = location.pathname; } }) : null,
       el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
     this.modal('Menu', body);
+  }
+  // Where does this player's save live? Explains it plainly, and offers the fix when the room is not set up.
+  storageBlock(g) {
+    const t = g.transport, box = el('div', { class: 'storage' });
+    if (t.kind !== 'matrix') { box.append(el('p', { text: 'Saved in this browser only.' })); return box; }
+    const ok = t.saveMode === 'room' && t.portable && !t.needsSetup;
+    const why = t.saveMode !== 'room' ? 'your save goes to your account (not portable)' : !t.portable ? 'the world seed is the room id (not portable)' : 'other players are not allowed to save in this room yet';
+    box.append(el('p', { class: ok ? 'good' : 'warn', text: ok ? 'World and your save are stored in this room, so they move with the room.' : 'Room storage is not fully set up: ' + why + '.' }));
+    if (t.needsSetup && t.canSetup) box.append(el('button', { class: 'btn buy', text: 'Set up this room (admin)', onclick: async (e) => {
+      e.currentTarget.disabled = true; const r = await t.setupRoom();
+      this.toast(r.ok ? 'Room set up: saves now live in the room' : 'Setup failed: ' + r.message, 3000); if (r.ok) g.save(); this.openMenu();
+    } }));
+    else if (t.needsSetup) box.append(el('small', { text: 'Ask a room admin to open Menu > Set up this room.' }));
+    return box;
   }
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
@@ -198,8 +214,10 @@ export class UI {
       const acctBox = el('div', {}, el('label', { text: 'Saved account' }), acct, forget);
       const syncAcct = () => { const saved = sessions.length && acct.value !== 'new'; acctBox.style.display = sessions.length ? '' : 'none'; loginBox.style.display = saved ? 'none' : ''; forget.style.display = saved ? '' : 'none'; };
       acct.addEventListener('change', syncAcct); syncAcct();
+      const create = el('input', { id: 'f-create', type: 'checkbox' });
       const matrixBox = el('div', { class: 'mbox' }, acctBox, loginBox,
         el('label', { text: 'Room alias or id (persistent world = this room)' }), mroom,
+        el('label', { class: 'check' }, create, document.createTextNode(' Create this room if it does not exist (needs an alias like #name:server)')),
         el('small', { text: 'Your password only goes to your own homeserver. The world, and your car, cash and parts, are stored in the room itself.' }));
       const localBox = el('div', { class: 'lbox' }, el('label', { text: 'Room name (same name in another tab = same world)' }), room);
       const err = el('div', { class: 'err', text: errorMsg });
@@ -208,7 +226,7 @@ export class UI {
       const go = el('button', { class: 'btn buy', text: 'Drive', onclick: () => {
         if (!name.value.trim()) { err.textContent = 'Pick a name first'; return; }
         const savedSess = sessions.length && acct.value !== 'new' ? sessions[+acct.value] : null;
-        resolve({ mode: mode.value, name: name.value.trim(), room: room.value.trim() || 'lobby', hs: hs.value.trim(), user: user.value.trim(), password: pass.value, token: token.value.trim(), mroom: mroom.value.trim(), session: savedSess, remember: remember.checked });
+        resolve({ mode: mode.value, name: name.value.trim(), room: room.value.trim() || 'lobby', hs: hs.value.trim(), user: user.value.trim(), password: pass.value, token: token.value.trim(), mroom: mroom.value.trim(), session: savedSess, remember: remember.checked, create: create.checked });
         this.closeModal(true);
       } });
       this.connectErr = err; this.connectBtn = go;

@@ -14,12 +14,15 @@ export class Transport {
     this.kind = 'none'; this.beaconMs = 100;
     this.onBeacon = () => {}; this.onChat = () => {}; this.onStatus = () => {};
     this.userId = ''; this.displayName = '';
+    this.portable = true; this.needsSetup = false; this.canSetup = false; this.saveMode = 'local';
   }
   async connect() { throw new Error('not implemented'); }
   sendBeacon() {} sendChat() {}
   async loadProfile() { return {}; }
   async saveProfile() {}
   async publishScore() {} async getScores() { return []; }
+  async setupRoom() { return { ok: true }; }
+  async logout() {}
   disconnect() {}
 }
 

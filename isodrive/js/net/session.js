@@ -15,3 +15,5 @@ export function forgetSession(s) { const all = read(); delete all[keyOf(s)]; wri
 const dk = (hs, user) => 'dev|' + String(hs).trim().toLowerCase().replace(/\/+$/, '') + '|' + String(user).trim().toLowerCase();
 export function deviceFor(hs, user) { const all = read(); return (all[dk(hs, user)] || {}).id || ''; }
 export function rememberDevice(pairs, id) { if (!id) return; const all = read(); for (const [hs, user] of pairs) all[dk(hs, user)] = { id }; write(all); }
+// drop every remembered token for this account (used by "Log out")
+export function forgetMatrixSessions(hs, userId) { const all = read(); for (const k of Object.keys(all)) if (k === `${hs}|${userId}` || (all[k] && all[k].userId === userId && all[k].token)) delete all[k]; write(all); }

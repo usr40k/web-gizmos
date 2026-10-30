@@ -36,19 +36,29 @@ shares the same world (the world seed is the room id) and sees each other drive.
 
 | What | Where it lives |
 |------|----------------|
+| World seed | room state `dev.isodrive.world`, so the world is part of the room (not tied to the room id) |
+| Your car, cash, parts, records | room state `dev.isodrive.save`, one per player (state key = your Matrix id) |
 | Positions | custom room events `dev.isodrive.beacon`, about 1 per second, smoothed by dead reckoning |
 | Chat | normal `m.room.message`, so it also shows up in Element |
-| Your car, cash, parts, records | **your account data** `dev.isodrive.profile`, private and follows you across devices |
 | Leaderboard | room state `dev.isodrive.score`, one state key per user |
+
+Because everything lives in the room, two rooms on one server never clash (same account, different rooms = different worlds
+and saves), and moving the room keeps the data: rebind the alias to a new room that carries the same state, or let federation
+host the room elsewhere, and the world and every player's save come with it. Room members can read each other's saves (they are
+room state), so do not put anything private in a profile.
+
+If you are not allowed to write that state, the game says so in the menu, saves to a per-room slot in your own account instead
+(works, but is not portable) and a room admin can fix it with one button (below). The newest save always wins when both exist.
 
 Room setup (one time, on your own homeserver):
 
-1. Create a room for the world. Anyone you want to play with joins it.
+1. **Easiest:** tick "Create this room if it does not exist" on the start screen and use an alias like `#myworld:your.server`.
+   The room is created with the right permissions and a world seed. (It is joinable by anyone who knows the alias but not
+   listed in the directory.) Or use any existing room and open Menu > **Set up this room (admin)**, which grants every player
+   permission to write their own save and score and records the world seed. Only a room admin sees that button.
 2. **Rate limit.** Synapse defaults (about 0.2 messages/s) are far too low for beacons. Raise `rc_message` in
    `homeserver.yaml` (for example `per_second: 5`, `burst_count: 20`) or exempt the player accounts. If you do not,
    the client backs off automatically (you will see "Rate limited" in the corner) and other cars move in jumpy steps.
-3. **Leaderboard permission** (optional). In Element: `/devtools` -> Explore room state -> `m.room.power_levels` -> edit, and add
-   `"dev.isodrive.score": 0` under `events`. Without it everything works except sharing best times.
 
 Sessions: with "Stay logged in" ticked (default) the page keeps a login **token** and device id in this browser's localStorage,
 so you resume with one click; the password is never stored. Untick it on shared computers. "Forget this account" deletes the

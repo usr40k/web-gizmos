@@ -80,3 +80,4 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
 .panel label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--ink); font-size: 11px; } .panel label.check input { width: auto; margin: 2px 0 0; }
 .rec { margin: 2px 0; } pre.problemlist { white-space: pre-wrap; font-size: 11px; max-height: 60vh; overflow: auto; margin: 0; }
 .menu p { margin: 6px 0; }
+.storage p.good { color: var(--good); } .storage p.warn { color: #ffb340; }

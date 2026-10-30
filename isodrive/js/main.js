@@ -36,7 +36,7 @@ async function main() {
       if (choice.mode === 'matrix') {
         const sess = choice.session;
         transport = new MatrixTransport({
-          homeserver: sess ? sess.hs : choice.hs, user: choice.user, password: choice.password, room: choice.mroom,
+          homeserver: sess ? sess.hs : choice.hs, user: choice.user, password: choice.password, room: choice.mroom, createIfMissing: !!choice.create,
           token: sess ? sess.token : choice.token, deviceId: sess ? sess.deviceId : deviceFor(choice.hs, choice.user),
           onLogin: (s) => { rememberDevice([[choice.hs, choice.user], [s.hs, s.userId]], s.deviceId); if (choice.remember) saveSession(s); },
         });
@@ -52,6 +52,7 @@ async function main() {
     }
   }
 
+  // profile/room identity: the world seed for Matrix (stable, lives in the room), the room name for local play
   const room = choice.mode === 'matrix' ? info.seed : choice.room;
   const data = await transport.loadProfile();
   const profile = new Profile(reg, data);
