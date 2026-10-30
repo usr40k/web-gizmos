@@ -1,0 +1,6 @@
+{
+  "name": "isodrive",
+  "private": true,
+  "type": "module",
+  "description": "Isodrive: pixel-isometric multiplayer racer (web-gizmos). No build step."
+}

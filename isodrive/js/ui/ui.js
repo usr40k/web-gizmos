@@ -1,0 +1,206 @@
+// All DOM UI. Rule: anything that can come from another player or a content pack goes in via textContent only.
+import { CAR_COLORS } from '../game/profile.js';
+import { SLOTS } from '../content/schema.js';
+
+const $ = (id) => document.getElementById(id);
+export function el(tag, props = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v; else if (k === 'text') e.textContent = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else if (v !== false && v !== undefined) e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids) if (k !== null && k !== undefined) e.append(k);
+  return e;
+}
+
+const STAT_LABEL = { accel: 'Accel', topSpeed: 'Top speed', grip: 'Grip', offroad: 'Off-road', fuelCap: 'Tank', efficiency: 'Economy' };
+const fmtStat = (k, v) => (k === 'offroad' || k === 'efficiency' ? `${v > 0 ? '+' : ''}${Math.round(v * 100)}%` : `${v > 0 ? '+' : ''}${+v.toFixed(1)}${k === 'fuelCap' ? 'L' : ''}`);
+
+export class UI {
+  constructor() {
+    this.game = null; this.modalOpen = false; this.onModal = () => {};
+    this.promptState = null;
+    $('prompt').addEventListener('click', () => { if (this.promptState && this.promptState.action) this.promptState.action(); });
+    $('chatform').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const i = $('chatinput'), text = i.value.trim().slice(0, 200);
+      i.value = ''; i.blur();
+      if (text && this.game) { this.game.transport.sendChat(text); this.chat(this.game.profile.name || 'me', text, true); }
+    });
+    $('menubtn').addEventListener('click', () => this.openMenu());
+  }
+
+  // ---------------------------------------------------------------- small stuff
+  toast(text, ms = 1500) {
+    const t = el('div', { class: 'toast', text }); $('toasts').append(t);
+    while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
+    setTimeout(() => t.remove(), ms);
+  }
+  pickup(text) { this.toast(text, 700); }
+  banner(text, ms = 2200) {
+    const b = $('banner'); b.textContent = text; b.classList.add('show');
+    clearTimeout(this.bt); this.bt = setTimeout(() => b.classList.remove('show'), ms);
+  }
+  status(text, ok) { const s = $('status'); s.textContent = text; s.classList.toggle('bad', !ok); }
+  chat(name, text, mine) {
+    const log = $('chatlog'), line = el('div', { class: 'chatline' + (mine ? ' mine' : '') });
+    line.append(el('b', { text: name + ': ' }), document.createTextNode(text));
+    log.append(line); while (log.children.length > 8) log.firstChild.remove();
+    setTimeout(() => line.classList.add('old'), 12000);
+  }
+  prompt(p) {
+    this.promptState = p;
+    const e = $('prompt');
+    if (!p || this.modalOpen) { e.classList.remove('show'); return; }
+    if (e.textContent !== p.text) e.textContent = p.text;
+    e.classList.add('show'); e.classList.toggle('action', !!p.action);
+  }
+  hud(s) {
+    $('cash').textContent = '$' + Math.round(s.cash);
+    const pct = Math.max(0, Math.min(1, s.fuel / s.cap));
+    const f = $('fuelfill'); f.style.width = (pct * 100).toFixed(0) + '%';
+    f.style.background = pct < 0.2 ? '#ff4a4a' : pct < 0.45 ? '#ffb340' : '#00ffff';
+    $('fueltxt').textContent = s.fuel.toFixed(0) + '/' + s.cap.toFixed(0) + 'L';
+    $('speed').textContent = Math.round(s.speed * 8) + ' km/h';
+    $('peers').textContent = s.peers ? s.peers + ' other' + (s.peers > 1 ? 's' : '') + ' nearby' : '';
+    const r = $('race');
+    if (s.race) { r.classList.add('show'); r.textContent = `${s.race.def.name}  ${s.race.time.toFixed(1)}s  ${s.race.idx}/${s.race.points.length}  (par ${s.race.def.parTime}s)`; }
+    else r.classList.remove('show');
+  }
+  contentProblems(reg) {
+    const n = reg.errors.length;
+    if (reg.errors.length || reg.warnings.length) {
+      console.group('[isodrive] content problems'); reg.errors.forEach((e) => console.error(e)); reg.warnings.forEach((w) => console.warn(w)); console.groupEnd();
+    }
+    const b = $('problems');
+    if (!n) { b.classList.remove('show'); return; }
+    b.textContent = `${n} content problem${n > 1 ? 's' : ''} (affected items were skipped). Click for details.`;
+    b.classList.add('show');
+    b.onclick = () => this.modal('Content problems', el('pre', { class: 'problemlist', text: [...reg.errors.map((e) => 'ERROR: ' + e), ...reg.warnings.map((w) => 'warning: ' + w)].join('\n') }));
+  }
+
+  // ---------------------------------------------------------------- modal plumbing
+  modal(title, body, { onClose, wide } = {}) {
+    this.closeModal(true);
+    const m = $('modal');
+    m.replaceChildren(el('div', { class: 'panel' + (wide ? ' wide' : '') },
+      el('div', { class: 'panelhead' }, el('h2', { text: title }), onClose === false ? null : el('button', { class: 'x', text: 'X', onclick: () => this.closeModal() })),
+      body));
+    m.classList.add('show'); this.modalOpen = true; this.onClose = onClose; this.onModal(true);
+  }
+  closeModal(silent) {
+    if (!this.modalOpen) return;
+    $('modal').classList.remove('show'); $('modal').replaceChildren(); this.modalOpen = false;
+    const cb = this.onClose; this.onClose = null; if (cb && !silent) cb();
+    this.onModal(false);
+  }
+
+  // ---------------------------------------------------------------- shop / garage
+  openShop(b, game) { this.game = game; this.partsModal(b.def.name, game, b.biome.shopStock.map((id) => game.reg.get('part', id)).filter(Boolean), true); }
+  openGarage(game) {
+    this.game = game;
+    const owned = [...game.profile.owned].map((id) => game.reg.get('part', id)).filter(Boolean);
+    this.partsModal('Garage', game, owned, false);
+  }
+  partsModal(title, game, parts, shop) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile;
+      body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
+      if (!shop) body.append(this.colorRow(game));
+      for (const slot of SLOTS) {
+        const list = parts.filter((p) => p.slot === slot);
+        if (!list.length) continue;
+        body.append(el('h3', { text: slot }));
+        for (const p of list) {
+          const have = P.owned.has(p.id), eq = P.equipped[slot] === p.id;
+          const stats = el('div', { class: 'chips' });
+          for (const [k, v] of Object.entries(p.stats || {})) if (v) stats.append(el('span', { class: 'chip ' + (v > 0 ? 'good' : 'bad'), text: `${STAT_LABEL[k]} ${fmtStat(k, v)}` }));
+          let btn;
+          if (eq) btn = el('button', { class: 'btn', disabled: true, text: 'Equipped' });
+          else if (have) btn = el('button', { class: 'btn', text: 'Equip', onclick: () => { game.equip(p.id); render(); } });
+          else btn = el('button', { class: 'btn buy', text: `Buy $${p.price}`, disabled: P.cash < p.price, onclick: () => { const e = game.buy(p.id); this.toast(e || `Bought ${p.name}`, 1400); render(); } });
+          body.append(el('div', { class: 'part' + (eq ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: p.name }), p.desc ? el('small', { text: p.desc }) : null, stats), btn));
+        }
+      }
+      if (!shop) body.append(this.recordsBlock(game));
+      if (shop && !parts.length) body.append(el('p', { text: 'Nothing for sale here.' }));
+    };
+    render();
+    this.modal(title, body);
+  }
+  colorRow(game) {
+    const row = el('div', { class: 'colors' });
+    for (const c of CAR_COLORS) {
+      const b = el('button', { class: 'swatch' + (game.profile.color === c ? ' sel' : ''), style: `background:${c}`, 'aria-label': 'car color ' + c });
+      b.addEventListener('click', () => { game.setColor(c); [...row.children].forEach((x) => x.classList.toggle('sel', x === b)); });
+      row.append(b);
+    }
+    return el('div', {}, el('h3', { text: 'paint' }), row);
+  }
+  recordsBlock(game) {
+    const box = el('div', { class: 'records' }, el('h3', { text: 'records' }));
+    const races = game.reg.list('race');
+    for (const r of races) {
+      const mine = game.profile.best[r.id];
+      const line = el('div', { class: 'rec' }, el('b', { text: r.name }), el('span', { text: mine ? ` best ${mine.toFixed(1)}s` : ' no time yet' }));
+      box.append(line);
+      game.transport.getScores(r.id).then((s) => { if (s.length) line.append(el('small', { text: '  top: ' + s.slice(0, 3).map((e) => `${e.name} ${e.secs.toFixed(1)}s`).join(', ') })); });
+    }
+    return box;
+  }
+
+  // ---------------------------------------------------------------- menu
+  openMenu() {
+    const g = this.game; if (!g) return;
+    const body = el('div', { class: 'menu' },
+      el('p', { text: `Room: ${g.room}  |  ${g.transport.kind}${g.transport.userId ? '  |  ' + g.transport.userId : ''}` }),
+      el('p', { text: `Races ${g.profile.stats.races}  |  Coins ${g.profile.stats.coins}  |  ${g.profile.stats.km.toFixed(1)} km` }),
+      el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
+      el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
+      el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
+    this.modal('Menu', body);
+  }
+  controls() {
+    this.modal('Controls', el('div', { class: 'menu' },
+      el('p', { text: 'W/A/S/D or arrows: drive   Space: handbrake' }),
+      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   T: call a tow when out of fuel' }),
+      el('p', { text: 'Enter: chat   Esc: menu' }),
+      el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));
+  }
+
+  // ---------------------------------------------------------------- connect screen
+  connect(defaults, reg, errorMsg = '') {
+    return new Promise((resolve) => {
+      const d = defaults;
+      const name = el('input', { id: 'f-name', maxlength: 16, value: d.name || '', placeholder: 'Your name', autocomplete: 'off' });
+      const room = el('input', { id: 'f-room', value: d.room || 'lobby', autocomplete: 'off' });
+      const hs = el('input', { id: 'f-hs', value: d.hs || '', placeholder: 'matrix.example.org', autocomplete: 'off' });
+      const user = el('input', { id: 'f-user', value: d.user || '', placeholder: 'username or @user:server', autocomplete: 'username' });
+      const pass = el('input', { id: 'f-pass', type: 'password', placeholder: 'password (never stored)', autocomplete: 'current-password' });
+      const token = el('input', { id: 'f-token', type: 'password', placeholder: 'or access token', autocomplete: 'off' });
+      const mroom = el('input', { id: 'f-mroom', value: d.mroom || '', placeholder: '#isodrive:matrix.example.org', autocomplete: 'off' });
+      const mode = el('select', { id: 'f-mode' }, el('option', { value: 'local', text: 'Local (this browser)' }), el('option', { value: 'matrix', text: 'Matrix room' }));
+      mode.value = d.mode === 'matrix' ? 'matrix' : 'local';
+      const matrixBox = el('div', { class: 'mbox' },
+        el('label', { text: 'Homeserver' }), hs, el('label', { text: 'Account' }), user, pass, token, el('label', { text: 'Room alias or id (persistent world = this room)' }), mroom,
+        el('small', { text: 'Your password only goes to your own homeserver. Your car, cash and parts are saved in your Matrix account, so they follow you across devices.' }));
+      const localBox = el('div', { class: 'lbox' }, el('label', { text: 'Room name (same name in another tab = same world)' }), room);
+      const err = el('div', { class: 'err', text: errorMsg });
+      const sync = () => { matrixBox.style.display = mode.value === 'matrix' ? '' : 'none'; localBox.style.display = mode.value === 'local' ? '' : 'none'; };
+      mode.addEventListener('change', sync); sync();
+      const go = el('button', { class: 'btn buy', text: 'Drive', onclick: () => {
+        if (!name.value.trim()) { err.textContent = 'Pick a name first'; return; }
+        resolve({ mode: mode.value, name: name.value.trim(), room: room.value.trim() || 'lobby', hs: hs.value.trim(), user: user.value.trim(), password: pass.value, token: token.value.trim(), mroom: mroom.value.trim() });
+        this.closeModal(true);
+      } });
+      this.connectErr = err; this.connectBtn = go;
+      this.modal('Isodrive', el('div', { class: 'connect' },
+        el('p', { class: 'tag', text: 'Pixel-isometric road trips across a procedural world. Drive, refuel, shop, race.' }),
+        el('label', { text: 'Name' }), name, el('label', { text: 'Multiplayer' }), mode, localBox, matrixBox, err, go,
+        el('small', { text: `${reg.list('biome').length} biomes, ${reg.list('part').length} parts loaded from ${reg.packs.length} content pack(s)` })), { onClose: false });
+    });
+  }
+  showConnectError(msg) { if (this.connectErr) this.connectErr.textContent = msg; }
+}

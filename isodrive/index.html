@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="icon" type="image/png" href="favicon.png">
+<title>Isodrive</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hudroot">
+  <div id="hud">
+    <div id="cash">$0</div>
+    <div class="fuelrow"><div id="fuelbar"><div id="fuelfill"></div></div><span id="fueltxt"></span></div>
+    <div id="speed">0 km/h</div>
+  </div>
+  <div id="topright"><div id="status"></div><div id="peers"></div><button id="menubtn" aria-label="menu">MENU</button></div>
+  <div id="race"></div>
+  <div id="problems"></div>
+  <div id="banner"></div>
+  <div id="toasts"></div>
+  <div id="prompt"></div>
+  <div id="chat"><div id="chatlog"></div>
+    <form id="chatform"><input id="chatinput" maxlength="200" placeholder="Enter to chat" autocomplete="off"></form></div>
+  <div id="touch">
+    <div class="tl"><button data-touch="left" aria-label="left">&#9664;</button><button data-touch="right" aria-label="right">&#9654;</button></div>
+    <div class="tr"><button data-touch="brake" aria-label="brake">BRK</button><button data-touch="down" aria-label="reverse">&#9660;</button><button data-touch="up" class="gas" aria-label="gas">GAS</button></div>
+  </div>
+</div>
+
+<div id="modal"></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+// Car stats (base + equipped parts) and arcade physics. Units: tiles and seconds.
+import { clamp } from '../util/rng.js';
+import { ROAD_HALF } from '../world/world.js';
+
+export const BASE = { accel: 9, topSpeed: 14, grip: 5, offroad: 0, fuelCap: 30, efficiency: 0 };
+export const FUEL_BASE_PRICE = 2;       // cash per litre
+
+export function carStats(reg, equipped) {
+  const s = { ...BASE };
+  for (const id of Object.values(equipped)) {
+    const p = reg.get('part', id);
+    if (p && p.stats) for (const k of Object.keys(s)) s[k] += p.stats[k] || 0;
+  }
+  s.accel = Math.max(2, s.accel); s.topSpeed = Math.max(5, s.topSpeed); s.grip = Math.max(1, s.grip);
+  s.fuelCap = Math.max(10, s.fuelCap); s.efficiency = clamp(s.efficiency, -0.5, 0.8); s.offroad = clamp(s.offroad, 0, 1);
+  return s;
+}
+
+export function newCar(spawn) {
+  return { x: spawn.x, y: spawn.y, h: spawn.h, vx: 0, vy: 0, speed: 0, steer: 0, onRoad: true, crash: 0 };
+}
+
+// surface under the car: { road: bool, grip, drag }
+export function surfaceAt(world, x, y, stats) {
+  const biome = world.biomeAt(x, y);
+  const ri = world.roadAt(x, y);
+  const road = ri.d <= ROAD_HALF + 0.3;
+  const s = road ? biome.roadSurface : biome.terrain;
+  const grip = s.grip + (1 - s.grip) * stats.offroad * (road ? 0.6 : 1);
+  const drag = s.drag - Math.max(0, s.drag - 0.35) * stats.offroad;
+  return { road, grip, drag, biome };
+}
+
+// input: { throttle -1..1, steer -1..1, brake bool }.  Returns { crashSpeed } when something was hit hard.
+export function stepCar(car, input, dt, world, stats, fuel) {
+  const sf = surfaceAt(world, car.x, car.y, stats);
+  car.onRoad = sf.road; car.biome = sf.biome;
+  const c = Math.cos(car.h), s = Math.sin(car.h);
+  let fwd = car.vx * c + car.vy * s, lat = -car.vx * s + car.vy * c;
+  const hasFuel = fuel > 0;
+  const thr = hasFuel ? input.throttle : 0;
+  const top = stats.topSpeed * (sf.road ? 1 : 1 / (0.6 + 0.4 * sf.drag));
+
+  if (thr > 0) fwd += thr * stats.accel * sf.grip * dt * (1 - clamp(fwd / (top * 1.02), 0, 1) ** 2);
+  else if (thr < 0) fwd += (fwd > 0.5 ? thr * 22 : thr * stats.accel * 0.5) * dt;       // brake, then reverse
+  if (input.brake) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 20 * dt);
+  fwd -= fwd * Math.min(1, (sf.drag * 0.18 + 0.05) * dt * (thr > 0 ? 0.6 : 1.8));        // rolling drag
+  fwd = clamp(fwd, -top * 0.35, top * 1.05);
+
+  // steering authority builds with speed, shrinks at very high speed
+  const sp = Math.abs(fwd);
+  const auth = clamp(sp / 3.5, 0, 1) * (1 - 0.35 * clamp(sp / (stats.topSpeed * 1.2), 0, 1));
+  car.steer += (input.steer - car.steer) * Math.min(1, dt * 10);
+  car.h += car.steer * 2.4 * auth * (fwd >= 0 ? 1 : -1) * dt;
+
+  // lateral grip -> drifting when grip is low
+  lat *= Math.exp(-stats.grip * sf.grip * dt * (input.brake ? 0.45 : 1));
+  const nc = Math.cos(car.h), ns = Math.sin(car.h);
+  car.vx = fwd * nc - lat * ns; car.vy = fwd * ns + lat * nc;
+  car.speed = fwd; car.slip = Math.abs(lat);
+
+  car.x += car.vx * dt; car.y += car.vy * dt;
+
+  // ---- collisions
+  let hit = 0;
+  const { circles, rects } = world.solidsNear(car.x, car.y, 3.2);
+  const R = 0.5;
+  for (const o of circles) {
+    const dx = car.x - o.x, dy = car.y - o.y, d = Math.hypot(dx, dy), m = o.r + R;
+    if (d < m && d > 1e-4) hit = Math.max(hit, bounce(car, dx / d, dy / d, m - d));
+  }
+  for (const b of rects) {
+    const px = clamp(car.x, b.x0, b.x1), py = clamp(car.y, b.y0, b.y1);
+    let dx = car.x - px, dy = car.y - py, d = Math.hypot(dx, dy);
+    if (d < R) {
+      if (d < 1e-4) { dx = car.x - b.x; dy = car.y - b.y; d = Math.hypot(dx, dy) || 1; }
+      hit = Math.max(hit, bounce(car, dx / d, dy / d, R - d + 1e-3));
+    }
+  }
+  car.crash = Math.max(0, car.crash - dt);
+  if (hit > 3) car.crash = 0.35;
+  return { hit, sf, thr };
+}
+
+function bounce(car, nx, ny, pen) {
+  car.x += nx * pen; car.y += ny * pen;
+  const vn = car.vx * nx + car.vy * ny;
+  if (vn < 0) { car.vx -= 1.5 * vn * nx; car.vy -= 1.5 * vn * ny; car.vx *= 0.8; car.vy *= 0.8; return -vn; }
+  return 0;
+}
+
+// litres per second
+export function fuelBurn(stats, speed, thr) {
+  return (0.08 + 0.02 * Math.abs(speed) * Math.max(0, thr)) / (1 + stats.efficiency);
+}

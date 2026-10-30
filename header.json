@@ -8,6 +8,7 @@
     "autohideregex": [
       "megaminer",
       "racing",
+      "isodrive",
       "voxelcrash",
       "turtle",
       "megaminer",
@@ -26,6 +27,7 @@
     ]
   },
   "extendedConfigs": [
+    "isodrive",
     "voxelcrash",
     "racing",
     "matrix",
