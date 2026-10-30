@@ -17,6 +17,7 @@ export class Profile {
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
     this.pos = data.pos || null;                                      // last position, so rejoining resumes
     this.rev = data.rev || 0;
+    this.tut = data.tut === true;                                     // tutorial finished or skipped
     // every slot always has an equipped, owned part (falls back to the cheapest = starter)
     for (const slot of SLOTS) {
       const parts = reg.list('part').filter((p) => p.slot === slot).sort((a, b) => a.price - b.price);
@@ -29,7 +30,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos };
+      owned: [...this.owned], equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {

@@ -134,6 +134,20 @@ export class World {
     return out;
   }
 
+  // nearest building of a kind to (x,y), searching outward; null if none within maxR
+  findNearest(kind, x, y, maxR = 500) {
+    for (let r = 60; r <= maxR; r *= 2) {
+      let best = null, bd = Infinity;
+      for (const b of this.buildingsInRect(x - r, y - r, x + r, y + r)) {
+        if (b.def.kind !== kind) continue;
+        const d = Math.hypot(b.doorX - x, b.doorY - y);
+        if (d < bd) { bd = d; best = b; }
+      }
+      if (best) return best;
+    }
+    return null;
+  }
+
   // ---------------------------------------------------------------- chunks (ground + props)
   chunk(cx, cy) {
     const key = cx + ',' + cy;

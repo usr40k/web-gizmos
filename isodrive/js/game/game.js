@@ -1,6 +1,7 @@
 // Game orchestration: ties world, car, economy, races and networking together. No DOM here except through `ui`.
 import { newCar, stepCar, carStats, fuelBurn, FUEL_BASE_PRICE } from './car.js';
 import { Peers, packBeacon } from '../net/transport.js';
+import { Tutorial } from './tutorial.js';
 
 const COIN_VALUE = 10, COIN_R = 1.3, ZONE_R = 2.4;
 
@@ -13,7 +14,8 @@ export class Game {
     const sp = profile.pos && Number.isFinite(profile.pos.x) ? profile.pos : world.spawn();
     this.car = newCar({ x: sp.x, y: sp.y, h: sp.h || 0 });
     this.fuel = profile.fuel === null ? this.stats.fuelCap : Math.min(profile.fuel, this.stats.fuelCap);
-    this.race = null; this.near = null; this.coins = [];
+    this.race = null; this.near = null; this.coins = []; this.flags = {};
+    this.tutorial = new Tutorial(this, ui);
     this.lastBiome = null; this.beaconT = 0; this.saveT = 0; this.dirty = false; this.strandedT = 0; this.speedMax = 0;
     transport.onBeacon = (id, d) => this.peers.update(id, d, Date.now());
     transport.onChat = (id, name, text) => ui.chat(name, text);
@@ -58,6 +60,7 @@ export class Game {
 
     // race
     if (this.race) this.updateRace(dt);
+    this.tutorial.update(dt);
 
     // out-of-fuel rescue prompt
     if (this.fuel <= 0 && Math.abs(car.speed) < 0.6) { this.strandedT += dt; if (this.strandedT > 2) this.ui.prompt({ text: `Out of fuel! Press T to call a tow ($${this.towCost()})`, action: () => this.tow() }); }
@@ -92,7 +95,7 @@ export class Game {
       const cost = Math.ceil(need * price);
       return { text: `[E] Refuel ${need.toFixed(0)}L - $${cost}  (${d.name})`, action: () => this.refuel(b) };
     }
-    if (d.kind === 'shop') return { text: `[E] Browse ${d.name}`, action: () => this.ui.openShop(b, this) };
+    if (d.kind === 'shop') return { text: `[E] Browse ${d.name}`, action: () => { this.flags.shop = true; this.ui.openShop(b, this); } };
     if (d.kind === 'race_pad') {
       const r = this.reg.get('race', d.race);
       return this.race ? { text: '[E] Cancel current race', action: () => this.cancelRace('Race cancelled') } : { text: `[E] Start ${r.name} (par ${r.parTime}s, $${r.payout})`, action: () => this.startRace(b) };
@@ -108,7 +111,7 @@ export class Game {
     if (litres * price > this.profile.cash) litres = Math.floor(this.profile.cash / price);
     if (litres < 1) { this.ui.toast('Not enough cash for fuel', 1500); return; }
     const cost = Math.ceil(litres * price);
-    this.profile.cash -= cost; this.fuel = Math.min(this.stats.fuelCap, this.fuel + litres); this.markDirty();
+    this.profile.cash -= cost; this.fuel = Math.min(this.stats.fuelCap, this.fuel + litres); this.markDirty(); this.flags.refuel = true;
     this.ui.toast(`Bought ${litres.toFixed(0)}L for $${cost}`, 1500);
   }
 
@@ -132,9 +135,9 @@ export class Game {
     const def = this.reg.get('race', b.def.race);
     const points = this.world.raceCheckpoints(b, def);
     this.race = { def, points, idx: 0, t0: this.t, color: b.def.accent, bld: b, time: 0 };
-    this.ui.banner(def.name + ' - GO!');
+    this.flags.raceStart = true; this.ui.banner(def.name + ' - GO!');
   }
-  cancelRace(msg) { this.race = null; this.ui.toast(msg, 1800); }
+  cancelRace(msg) { this.race = null; this.flags.raceEnd = true; this.ui.toast(msg, 1800); }
   updateRace(dt) {
     const r = this.race; r.time = this.t - r.t0;
     const p = r.points[r.idx];
@@ -153,6 +156,6 @@ export class Game {
     const pb = !(prev <= time);
     if (pb) { this.profile.best[def.id] = +time.toFixed(2); this.transport.publishScore(def.id, +time.toFixed(2), this.profile.name); }
     this.ui.banner(`${def.name}: ${time.toFixed(1)}s  +$${pay}${pb ? '  NEW BEST!' : ''}`, 3500);
-    this.race = null; this.markDirty(); this.save();
+    this.race = null; this.flags.raceEnd = true; this.markDirty(); this.save();
   }
 }
