@@ -77,5 +77,6 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
 .pinfo { display: flex; flex-direction: column; gap: 2px; } .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; } .chip { font-size: 11px; padding: 0 5px; border: 1px solid; } .chip.good { color: var(--good); } .chip.bad { color: var(--bad); }
 .cashline { color: #ffe27a; font-weight: 700; }
 .colors { display: flex; gap: 6px; flex-wrap: wrap; } .swatch { width: 30px; height: 30px; border: 2px solid #000; outline: 1px solid #555; cursor: pointer; } .swatch.sel { outline: 3px solid var(--accent); }
+.panel label.check { display: flex; gap: 8px; align-items: flex-start; color: var(--ink); font-size: 11px; } .panel label.check input { width: auto; margin: 2px 0 0; }
 .rec { margin: 2px 0; } pre.problemlist { white-space: pre-wrap; font-size: 11px; max-height: 60vh; overflow: auto; margin: 0; }
 .menu p { margin: 6px 0; }

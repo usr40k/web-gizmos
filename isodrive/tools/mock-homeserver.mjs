@@ -4,7 +4,7 @@
 import http from 'node:http';
 
 export function startMock(port = 0, { rateLimitFirst = 0 } = {}) {
-  const users = new Map(), tokens = new Map(), events = [], state = new Map(), acct = new Map();
+  const users = new Map(), tokens = new Map(), devices = new Map(), logins = [], events = [], state = new Map(), acct = new Map();
   let limited = rateLimitFirst, sentCount = 0;
   const send = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': '*' }); res.end(JSON.stringify(obj)); };
   const server = http.createServer(async (req, res) => {
@@ -15,10 +15,11 @@ export function startMock(port = 0, { rateLimitFirst = 0 } = {}) {
     if (path === '/login' && req.method === 'POST') {
       const u = body.identifier && body.identifier.user; const id = u.startsWith('@') ? u : `@${u}:mock`;
       if (body.password !== 'pw-' + id.slice(1).split(':')[0]) return send(res, 403, { errcode: 'M_FORBIDDEN', error: 'Invalid password' });
-      const tok = 'tok_' + Math.random().toString(36).slice(2); tokens.set(tok, id); return send(res, 200, { access_token: tok, user_id: id });
+      const tok = 'tok_' + Math.random().toString(36).slice(2); const dev = body.device_id || 'DEV' + Math.random().toString(36).slice(2, 8).toUpperCase(); tokens.set(tok, id); devices.set(tok, dev); logins.push({ id, dev }); return send(res, 200, { access_token: tok, user_id: id, device_id: dev });
     }
     if (!who) return send(res, 401, { errcode: 'M_UNKNOWN_TOKEN', error: 'Unknown token' });
-    if (path === '/account/whoami') return send(res, 200, { user_id: who });
+    if (path === '/account/whoami') return send(res, 200, { user_id: who, device_id: devices.get((req.headers.authorization || '').replace('Bearer ', '')) });
+    if (path === '/logout') { tokens.delete((req.headers.authorization || '').replace('Bearer ', '')); return send(res, 200, {}); }
     if (path.startsWith('/join/')) { events.push({ type: 'm.room.member', state_key: who, sender: who, content: { membership: 'join', displayname: who.slice(1).split(':')[0] }, origin_server_ts: Date.now() }); state.set('m.room.member|' + who, events[events.length - 1]); return send(res, 200, { room_id: '!room1:mock' }); }
     let m;
     if ((m = path.match(/^\/rooms\/([^/]+)\/send\/([^/]+)\/([^/]+)$/))) {
@@ -47,7 +48,7 @@ export function startMock(port = 0, { rateLimitFirst = 0 } = {}) {
     }
     send(res, 404, { errcode: 'M_UNRECOGNIZED', error: 'Unknown ' + path });
   });
-  return new Promise((r) => server.listen(port, '127.0.0.1', () => r({ server, port: server.address().port, sent: () => sentCount, close: () => server.close() })));
+  return new Promise((r) => server.listen(port, '127.0.0.1', () => r({ server, port: server.address().port, sent: () => sentCount, logins, tokens, close: () => server.close() })));
 }
 
 if (process.argv[1] && process.argv[1].endsWith('mock-homeserver.mjs')) {

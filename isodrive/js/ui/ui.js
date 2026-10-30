@@ -176,7 +176,7 @@ export class UI {
   }
 
   // ---------------------------------------------------------------- connect screen
-  connect(defaults, reg, errorMsg = '') {
+  connect(defaults, reg, errorMsg = '', sessions = [], onForget = () => {}) {
     return new Promise((resolve) => {
       const d = defaults;
       const name = el('input', { id: 'f-name', maxlength: 16, value: d.name || '', placeholder: 'Your name', autocomplete: 'off' });
@@ -188,16 +188,27 @@ export class UI {
       const mroom = el('input', { id: 'f-mroom', value: d.mroom || '', placeholder: '#isodrive:matrix.example.org', autocomplete: 'off' });
       const mode = el('select', { id: 'f-mode' }, el('option', { value: 'local', text: 'Local (this browser)' }), el('option', { value: 'matrix', text: 'Matrix room' }));
       mode.value = d.mode === 'matrix' ? 'matrix' : 'local';
-      const matrixBox = el('div', { class: 'mbox' },
-        el('label', { text: 'Homeserver' }), hs, el('label', { text: 'Account' }), user, pass, token, el('label', { text: 'Room alias or id (persistent world = this room)' }), mroom,
-        el('small', { text: 'Your password only goes to your own homeserver. Your car, cash and parts are saved in your Matrix account, so they follow you across devices.' }));
+      const remember = el('input', { id: 'f-remember', type: 'checkbox', checked: true });
+      const loginBox = el('div', {}, el('label', { text: 'Homeserver (optional if the account is @user:server)' }), hs, el('label', { text: 'Account' }), user, pass, token,
+        el('label', { class: 'check' }, remember, document.createTextNode(' Stay logged in on this device (stores a login token, never your password)')));
+      const acct = el('select', { id: 'f-acct' }, ...sessions.map((s, i) => el('option', { value: String(i), text: `${s.userId}  (${s.hs.replace(/^https?:\/\//, '')})` })), el('option', { value: 'new', text: 'Log in with another account...' }));
+      const forget = el('button', { class: 'btn', type: 'button', id: 'f-forget', text: 'Forget this account', onclick: () => {
+        const s = sessions[+acct.value]; if (!s) return; onForget(s); sessions.splice(+acct.value, 1); acct.querySelector(`option[value="${acct.value}"]`).remove(); acct.value = 'new'; syncAcct();
+      } });
+      const acctBox = el('div', {}, el('label', { text: 'Saved account' }), acct, forget);
+      const syncAcct = () => { const saved = sessions.length && acct.value !== 'new'; acctBox.style.display = sessions.length ? '' : 'none'; loginBox.style.display = saved ? 'none' : ''; forget.style.display = saved ? '' : 'none'; };
+      acct.addEventListener('change', syncAcct); syncAcct();
+      const matrixBox = el('div', { class: 'mbox' }, acctBox, loginBox,
+        el('label', { text: 'Room alias or id (persistent world = this room)' }), mroom,
+        el('small', { text: 'Your password only goes to your own homeserver. The world, and your car, cash and parts, are stored in the room itself.' }));
       const localBox = el('div', { class: 'lbox' }, el('label', { text: 'Room name (same name in another tab = same world)' }), room);
       const err = el('div', { class: 'err', text: errorMsg });
       const sync = () => { matrixBox.style.display = mode.value === 'matrix' ? '' : 'none'; localBox.style.display = mode.value === 'local' ? '' : 'none'; };
       mode.addEventListener('change', sync); sync();
       const go = el('button', { class: 'btn buy', text: 'Drive', onclick: () => {
         if (!name.value.trim()) { err.textContent = 'Pick a name first'; return; }
-        resolve({ mode: mode.value, name: name.value.trim(), room: room.value.trim() || 'lobby', hs: hs.value.trim(), user: user.value.trim(), password: pass.value, token: token.value.trim(), mroom: mroom.value.trim() });
+        const savedSess = sessions.length && acct.value !== 'new' ? sessions[+acct.value] : null;
+        resolve({ mode: mode.value, name: name.value.trim(), room: room.value.trim() || 'lobby', hs: hs.value.trim(), user: user.value.trim(), password: pass.value, token: token.value.trim(), mroom: mroom.value.trim(), session: savedSess, remember: remember.checked });
         this.closeModal(true);
       } });
       this.connectErr = err; this.connectBtn = go;

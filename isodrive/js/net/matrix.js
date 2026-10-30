@@ -56,21 +56,25 @@ export class MatrixTransport extends Transport {
   async connect({ room, name }) {
     const o = this.o;
     let hs = String(o.homeserver || '').trim().replace(/\/+$/, '');
+    const uid = String(o.user || '').trim();
+    if (!hs && uid.startsWith('@') && uid.includes(':')) hs = uid.split(':').slice(1).join(':');   // @user:domain is enough
     if (!hs) throw new Error('Homeserver URL is required');
-    if (!/^https?:\/\//.test(hs)) hs = 'https://' + hs;
-    this.base = hs;
-    this.onStatus('Connecting to ' + hs + '...', true);
+    this.base = await discoverBase(hs);
+    this.onStatus('Connecting to ' + this.base + '...', true);
     if (o.token) {
       this.token = o.token;
-      const w = await this.api('GET', '/account/whoami');
-      this.userId = w.user_id;
+      let w;
+      try { w = await this.api('GET', '/account/whoami', undefined, { retry: 1 }); }
+      catch (e) { if (e.status === 401) { const err = new Error('Saved session expired - please log in again'); err.expired = true; throw err; } throw e; }
+      this.userId = w.user_id; this.deviceId = w.device_id || o.deviceId || '';
     } else {
       if (!o.user || !o.password) throw new Error('User and password (or an access token) are required');
       const r = await this.api('POST', '/login', {
         type: 'm.login.password', identifier: { type: 'm.id.user', user: o.user }, password: o.password,
-        initial_device_display_name: 'Isodrive',
+        initial_device_display_name: 'Isodrive', ...(o.deviceId ? { device_id: o.deviceId } : {}),
       }, { retry: 1 });
-      this.token = r.access_token; this.userId = r.user_id;
+      this.token = r.access_token; this.userId = r.user_id; this.deviceId = r.device_id || '';
+      if (o.onLogin) o.onLogin({ hs: this.base, userId: this.userId, token: this.token, deviceId: this.deviceId });
     }
     const roomArg = (room || o.room || '').trim();
     if (!roomArg) throw new Error('Room (alias like #race:server or room id) is required');
@@ -171,9 +175,23 @@ export class MatrixTransport extends Transport {
     return [...this.scores.values()].filter((s) => Number.isFinite(s.best[raceId])).map((s) => ({ name: s.name, secs: s.best[raceId] })).sort((a, b) => a.secs - b.secs).slice(0, 10);
   }
 
+  static async revoke(sess) { const t = new MatrixTransport({}); t.base = await discoverBase(sess.hs); t.token = sess.token; await t.logout(); }
+
+  // Invalidate this token on the server (used by "Log out / forget this device").
+  async logout() { try { await this.api('POST', '/logout', {}, { retry: 0 }); } catch { /* already invalid */ } }
+
   disconnect() {
     this.running = false;
     if (this.aborter) this.aborter.abort();
   }
+}
+// "matrix.example.org" may be a delegated domain: ask its .well-known where the real homeserver lives.
+export async function discoverBase(input) {
+  if (/^https?:\/\//.test(input)) return input;
+  try {
+    const r = await fetch(`https://${input}/.well-known/matrix/client`, { cache: 'no-store' });
+    if (r.ok) { const j = await r.json(); const b = j && j['m.homeserver'] && j['m.homeserver'].base_url; if (typeof b === 'string' && /^https?:\/\//.test(b)) return b.replace(/\/+$/, ''); }
+  } catch { /* no well-known, or CORS blocked it: use the domain directly */ }
+  return 'https://' + input;
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

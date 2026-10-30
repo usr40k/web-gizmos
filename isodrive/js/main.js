@@ -7,6 +7,7 @@ import { Input } from './game/input.js';
 import { Profile, CAR_COLORS } from './game/profile.js';
 import { LocalTransport } from './net/local.js';
 import { MatrixTransport } from './net/matrix.js';
+import { listSessions, saveSession, forgetSession, deviceFor, rememberDevice } from './net/session.js';
 import { UI } from './ui/ui.js';
 
 const params = new URLSearchParams(location.search);
@@ -28,17 +29,26 @@ async function main() {
 
   let transport, info, error = '';
   for (;;) {
-    if (!choice) choice = await ui.connect(defaults, reg, error);
+    if (!choice) choice = await ui.connect(defaults, reg, error, listSessions(), (s) => { forgetSession(s); MatrixTransport.revoke(s).catch(() => {}); });
     defaults = { ...choice, password: undefined, token: undefined };
     saveSettings({ name: choice.name, room: choice.room, mode: choice.mode, hs: choice.hs, user: choice.user, mroom: choice.mroom });
     try {
-      transport = choice.mode === 'matrix'
-        ? new MatrixTransport({ homeserver: choice.hs, user: choice.user, password: choice.password, token: choice.token, room: choice.mroom })
-        : new LocalTransport();
+      if (choice.mode === 'matrix') {
+        const sess = choice.session;
+        transport = new MatrixTransport({
+          homeserver: sess ? sess.hs : choice.hs, user: choice.user, password: choice.password, room: choice.mroom,
+          token: sess ? sess.token : choice.token, deviceId: sess ? sess.deviceId : deviceFor(choice.hs, choice.user),
+          onLogin: (s) => { rememberDevice([[choice.hs, choice.user], [s.hs, s.userId]], s.deviceId); if (choice.remember) saveSession(s); },
+        });
+      } else transport = new LocalTransport();
       info = await transport.connect({ room: choice.mode === 'matrix' ? choice.mroom : choice.room, name: choice.name });
       break;
     } catch (e) {
-      error = 'Could not connect: ' + e.message; choice = null;
+      if (e.expired && choice && choice.session) {         // keep the device id and prefill the form for a quick re-login
+        const d = choice.session; forgetSession(d); rememberDevice([[d.hs, d.userId]], d.deviceId);
+        defaults = { ...defaults, mode: 'matrix', hs: d.hs, user: d.userId };
+      }
+      error = (e.expired ? '' : 'Could not connect: ') + e.message; choice = null;
     }
   }
 

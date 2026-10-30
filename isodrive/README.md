@@ -50,8 +50,12 @@ Room setup (one time, on your own homeserver):
 3. **Leaderboard permission** (optional). In Element: `/devtools` -> Explore room state -> `m.room.power_levels` -> edit, and add
    `"dev.isodrive.score": 0` under `events`. Without it everything works except sharing best times.
 
-Notes: your password is sent only to the homeserver you type in and is never stored. The page remembers homeserver,
-username and room name. This repo is public, so never commit credentials; there are none in this code.
+Sessions: with "Stay logged in" ticked (default) the page keeps a login **token** and device id in this browser's localStorage,
+so you resume with one click; the password is never stored. Untick it on shared computers. "Forget this account" deletes the
+token and logs it out on the server. An expired token just sends you back to the login form. You can type `@user:server`
+without a homeserver URL: the domain's `.well-known` is used to find it.
+
+Notes: your password is sent only to the homeserver you type in. The page remembers homeserver, username and room name. This repo is public, so never commit credentials; there are none in this code.
 
 Other transports (MQTT, a Cloudflare Worker with a Durable Object, WebRTC) only need a class implementing the interface
 documented at the top of `js/net/transport.js`; nothing else in the game changes.
