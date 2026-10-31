@@ -108,7 +108,7 @@ export default {
     { id: 'shop_adobe', name: 'Dune Bazaar', kind: 'shop', color: '#c9743f', accent: '#f0e040', width: 6, depth: 4, height: 13, sign: 'SHOP' },
     { id: 'shop_neon', name: 'Chrome Lab', kind: 'shop', color: '#2b1450', accent: '#ff2bd6', width: 6, depth: 4, height: 15, sign: 'LAB' },
     { id: 'shop_frost', name: 'Ice Garage', kind: 'shop', color: '#9fc4e0', roof: '#ffffff', accent: '#2a5a8a', width: 6, depth: 4, height: 14, sign: 'PARTS' },
-    { id: 'dealership', name: 'Auto Dealer', kind: 'dealer', color: '#dfe6ee', roof: '#3a5a8a', accent: '#4a8af0', width: 10, depth: 6, height: 11, sign: 'CARS' },
+    { id: 'dealership', name: 'Auto Dealer', kind: 'dealer', color: '#dfe6ee', roof: '#3a5a8a', accent: '#4a8af0', width: 9, depth: 6, height: 11, sign: 'CARS' },
     // decor: filler buildings for towns (kind 'decor' = no interaction)
     { id: 'house_std', name: 'House', kind: 'decor', color: '#e8dcc0', roof: '#a8483a', accent: '#6a8cd9', width: 4, depth: 4, height: 9 },
     { id: 'house_red', name: 'Brick House', kind: 'decor', color: '#b4574a', roof: '#4a3a3a', accent: '#ffe9a8', width: 5, depth: 4, height: 9 },
