@@ -129,6 +129,13 @@ export default {
     { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'shop', 'race_pad'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
   ],
 
+  wrecks: [
+    { id: 'wreck_sedan', name: 'Rusty sedan', color: '#8a5a44', length: 4.2, width: 2, height: 3, weight: 3, cash: 40, fuel: 5 },
+    { id: 'wreck_pickup', name: 'Abandoned pickup', color: '#5a6e8a', length: 5, width: 2.1, height: 3.4, weight: 2, cash: 60, fuel: 9 },
+    { id: 'wreck_bus', name: 'Burnt-out bus', color: '#a89a4a', length: 9, width: 2.6, height: 5, weight: 0.6, cash: 160, fuel: 20 },
+    { id: 'wreck_van', name: 'Stripped van', color: '#9aa0a8', length: 5.2, width: 2.3, height: 4, weight: 1.5, cash: 70, fuel: 10 },
+  ],
+
   // ---------------------------------------------------------------- parts (price 0 = free starter for that slot)
   parts: [
     { id: 'engine_stock', name: 'Stock 1.0L', slot: 'engine', price: 0, desc: 'Gets you to the shops.' },

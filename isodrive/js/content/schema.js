@@ -69,6 +69,7 @@ export const SCHEMA = {
       },
       shopStock: { type: 'list', of: { type: 'ref', ref: 'part' }, doc: 'Part ids sold by shops in this biome. Different biomes = different stock.' },
       fuelPrice: { type: 'number', min: 0.2, max: 6, default: 1, doc: 'Multiplier on the base fuel price.' },
+      wrecks: { type: 'number', min: 0, max: 1, default: 0.15, doc: 'How often salvageable wrecks sit beside highways (0 = never).' },
       coins: { type: 'number', min: 0, max: 1, default: 0.25, doc: 'How often cash trails appear on roads (0 = never).' },
     },
   },
@@ -146,6 +147,23 @@ export const SCHEMA = {
         type: 'list', doc: 'Extra filler buildings for this settlement type (towers, warehouses...). chance = relative weight, mixed with the biome homes.',
         of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
       },
+    },
+  },
+
+  wreck: {
+    plural: 'wrecks',
+    doc: 'A broken-down vehicle beside a highway. Press E next to it to salvage cash and fuel; it comes back after a while.',
+    fields: {
+      id: ID,
+      name: NAME('Shown in the prompt, e.g. "Rusty sedan".'),
+      color: { type: 'color', default: '#8a5a44' },
+      accent: { type: 'color', default: '#d9d2c0' },
+      length: { type: 'number', min: 2, max: 12, default: 4.2, doc: 'Tiles long.' },
+      width: { type: 'number', min: 1, max: 5, default: 2, doc: 'Tiles wide.' },
+      height: { type: 'number', min: 1, max: 20, default: 3 },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common.' },
+      cash: { type: 'int', min: 0, max: 2000, default: 40, doc: 'Maximum cash found (you get 30-100% of it).' },
+      fuel: { type: 'int', min: 0, max: 100, default: 6, doc: 'Maximum litres siphoned (30-100% of it).' },
     },
   },
 

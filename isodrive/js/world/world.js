@@ -11,6 +11,7 @@ export const HS = 900;          // highway spacing: long, sparse roads (about 1.
 export const S = HS;
 export const ROAD_HALF = 1.9;   // half highway width (tiles)
 export const SLOT = 400;        // roadside slot spacing along highways: buildings out here are remote
+export const WRECK_RUN = 320;   // wreck candidates per this many tiles of highway
 export const COIN_RUN = 120;    // spacing of coin trails
 export const STREET_HALF = 1.4;  // half width of a town street (tiles)
 const LOT = 13;                 // spacing of building lots along a town street
@@ -40,6 +41,7 @@ export class World {
     this.macroCache = new Map(); this.patchCache = new Map();
     this.chunks = new Map();
     this.bldCache = new Map();
+    this.wreckDefs = reg.list('wreck'); this.wreckW = this.wreckDefs.reduce((a, w) => a + w.weight, 0);
     this.setts = reg.list('settlement');
     this.settCache = new Map();
     this.collected = new Map();   // coin id -> time (ms) when it respawns
@@ -358,6 +360,34 @@ export class World {
     return out;
   }
   collectCoin(id, now) { this.collected.set(id, now + 120000); }
+
+  // ---------------------------------------------------------------- wrecks (salvage; same respawn map as coins)
+  wrecksNear(x0, y0, x1, y1, now) {
+    const out = [];
+    if (!this.wreckDefs.length) return out;
+    for (const axis of ['H', 'V']) {
+      const lo = axis === 'H' ? y0 : x0, hi = axis === 'H' ? y1 : x1, a0 = axis === 'H' ? x0 : y0, a1 = axis === 'H' ? x1 : y1;
+      for (let idx = Math.floor((lo - 12) / S); idx <= Math.ceil((hi + 12) / S); idx++) {
+        for (let run = Math.floor((a0 - 12) / WRECK_RUN); run <= Math.ceil((a1 + 12) / WRECK_RUN); run++) {
+          const salt = idx * 89 + (axis === 'H' ? 5 : 6);
+          const along = run * WRECK_RUN + 10 + rand01(this.seed, salt, run, 81) * (WRECK_RUN - 20);
+          const side = hash(this.seed, salt, run, 82) & 1 ? 1 : -1, rc = this.roadCenter(axis, idx, along) + side * (ROAD_HALF + 3 + rand01(this.seed, salt, run, 83) * 4);
+          const x = axis === 'H' ? along : rc, y = axis === 'H' ? rc : along;
+          if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          if (this.settlementAt(x, y, 20) || this.roadAt(x, y).d < ROAD_HALF + 2) continue;
+          if (rand01(this.seed, salt, run, 84) >= this.biomeAt(x, y).wrecks) continue;
+          const id = `W${axis}${idx}:${run}`;
+          if ((this.collected.get(id) || 0) > now) continue;
+          let r = rand01(this.seed, salt, run, 85) * this.wreckW, def = this.wreckDefs[0];
+          for (const w of this.wreckDefs) { r -= w.weight; if (r <= 0) { def = w; break; } }
+          const h = (axis === 'H' ? 0 : Math.PI / 2) + (rand01(this.seed, salt, run, 86) - 0.5) * 1.2;
+          out.push({ id, x, y, h, def, loot: rand01(this.seed, salt, run, 87) });
+        }
+      }
+    }
+    return out;
+  }
+  salvage(id, now) { this.collected.set(id, now + 600000); }
 
   // ---------------------------------------------------------------- races
   raceCheckpoints(bld, race) {

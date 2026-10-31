@@ -209,3 +209,12 @@ export function drawCar(ctx, cam, car, color, alpha = 1) {
   }
   ctx.globalAlpha = 1;
 }
+
+// wrecked vehicle: a tilted box with a dark hood and a puff of smoke
+export function drawWreck(ctx, cam, w, t) {
+  const d = w.def;
+  drawBox(ctx, cam, w.x, w.y, d.length / 2, d.width / 2, w.h, 0, d.height, d.color, shade(d.color, 1.25));
+  drawBox(ctx, cam, w.x + Math.cos(w.h) * d.length * 0.3, w.y + Math.sin(w.h) * d.length * 0.3, d.length * 0.18, d.width * 0.4, w.h, d.height, 0.6, '#222');
+  const [sx, sy] = cam.px(w.x, w.y, d.height + 2);
+  for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i / 3) % 1; rect(ctx, Math.round(sx + Math.sin(t + i * 2) * 2), Math.round(sy - k * 14), 2, 2, k < 0.6 ? '#555' : '#888'); }
+}
