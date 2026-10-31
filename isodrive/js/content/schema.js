@@ -21,6 +21,9 @@ export const SCHEMA = {
       id: ID,
       name: NAME('Name shown in the "Entering ..." banner.'),
       weight: { type: 'number', min: 0.1, max: 10, default: 1, doc: 'How common this biome is (1 = normal, 2 = twice as common).' },
+      scale: { type: 'number', min: 1, max: 15, default: 5, doc: 'About how many MINUTES it takes to drive across this biome (1 = tiny, 15 = vast). Bigger scale = bigger regions.' },
+      patch: { type: 'bool', default: false, doc: 'true = a small patch biome (oasis, crater...) that appears inside bigger biomes instead of forming its own region. Use scale 1 to 2.5.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only for patch biomes: ids of the biomes this patch may appear in. Empty = anywhere.' },
       start: { type: 'bool', default: false, doc: 'true on ONE biome only: the world spawns the player in it. Leave false in your own packs.' },
       palette: {
         type: 'object', required: true, doc: 'Colors. Use #rrggbb hex.',

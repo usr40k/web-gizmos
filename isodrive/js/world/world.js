@@ -6,14 +6,17 @@
 import { hash, rand01, noise1, strHash, clamp } from '../util/rng.js';
 
 export const CHUNK = 16;        // tiles per chunk side
-export const S = 48;            // road spacing
-export const ROAD_HALF = 1.6;   // half road width (tiles)
-export const REGION = 96;       // biome region size
-export const SLOT = 26;         // roadside slot spacing
-export const COIN_RUN = 44;     // spacing of coin trails
+export const TPM = 600;         // tiles per minute at a typical cruising speed (~10 tiles/s). Biome "scale" is in minutes.
+export const HS = 900;          // highway spacing: long, sparse roads (about 1.5 minutes apart)
+export const S = HS;
+export const ROAD_HALF = 1.9;   // half highway width (tiles)
+export const SLOT = 400;        // roadside slot spacing along highways: buildings out here are remote
+export const COIN_RUN = 120;    // spacing of coin trails
+const PATCH = 1800;             // cell size of the patch-biome layer
+const PATCH_CHANCE = 0.45;      // chance that a patch cell holds a patch
 
 export class World {
-  constructor(reg, seedStr) {
+  constructor(reg, seedStr, opts = {}) {
     this.reg = reg;
     this.seedStr = String(seedStr);
     this.seed = strHash(this.seedStr);
@@ -23,40 +26,74 @@ export class World {
       b._roadside = b.roadside.map((r) => ({ def: reg.get('building', r.building), chance: r.chance }));
       b._wsum = 0;
     }
-    this.wsum = this.biomes.reduce((a, b) => a + b.weight, 0);
-    this.startBiome = this.biomes.find((b) => b.start) || this.biomes[0];
+    this.startBiome = this.biomes.find((b) => b.start && !b.patch) || this.biomes.find((b) => !b.patch) || this.biomes[0];
+    this.macro = this.biomes.filter((b) => !b.patch);
+    this.patches = this.biomes.filter((b) => b.patch);
+    if (!this.macro.length) this.macro = this.biomes;                       // pathological packs: everything is a macro biome
+    this.wsum = this.macro.reduce((a, b) => a + b.weight, 0);
+    this.pwsum = this.patches.reduce((a, b) => a + b.weight, 0);
+    const avg = this.macro.reduce((a, b) => a + b.weight * b.scale, 0) / this.wsum;
+    this.G = Math.max(1800, Math.min(9000, Math.round(TPM * avg * (opts.gFactor || 0.9))));    // macro seed spacing, calibrated from the content's scales
+    this.macroCache = new Map(); this.patchCache = new Map();
     this.chunks = new Map();
     this.bldCache = new Map();
     this.collected = new Map();   // coin id -> time (ms) when it respawns
   }
 
   // ---------------------------------------------------------------- biomes
-  regionBiome(rx, ry) {
-    if (rx === 0 && ry === 0) return this.startBiome;
-    let r = rand01(this.seed, rx, ry, 11) * this.wsum;
-    for (const b of this.biomes) { r -= b.weight; if (r <= 0) return b; }
-    return this.biomes[this.biomes.length - 1];
+  // Two layers. MACRO regions come from a multiplicatively weighted Voronoi: each seed's pull is divided by its biome's
+  // `scale`, so a scale-15 biome claims a far larger area than a scale-3 one. PATCH biomes are small blobs (1-2 minutes)
+  // dropped inside macro regions (an oasis in the desert, a crater in the ashlands).
+  macroSeed(rx, ry) {
+    const key = rx + ',' + ry; let c = this.macroCache.get(key);
+    if (c) return c;
+    let biome, px, py;
+    if (rx === 0 && ry === 0) { biome = this.startBiome; px = 0; py = 0; }
+    else {
+      let r = rand01(this.seed, rx, ry, 11) * this.wsum; biome = this.macro[this.macro.length - 1];
+      for (const b of this.macro) { r -= b.weight; if (r <= 0) { biome = b; break; } }
+      px = (rx + 0.2 + 0.6 * rand01(this.seed, rx, ry, 12)) * this.G; py = (ry + 0.2 + 0.6 * rand01(this.seed, rx, ry, 13)) * this.G;
+    }
+    c = { px, py, biome }; this.macroCache.set(key, c); return c;
   }
-  regionPoint(rx, ry) {
-    if (rx === 0 && ry === 0) return [0, 0];
-    return [(rx + 0.15 + 0.7 * rand01(this.seed, rx, ry, 12)) * REGION, (ry + 0.15 + 0.7 * rand01(this.seed, rx, ry, 13)) * REGION];
-  }
-  biomeAt(x, y) {
-    // domain-warp so borders wiggle instead of being straight Voronoi edges
-    const wx = x + noise1(this.seed ^ 0x51, y / 37) * 14, wy = y + noise1(this.seed ^ 0x77, x / 37) * 14;
-    const rx0 = Math.floor(wx / REGION), ry0 = Math.floor(wy / REGION);
+  macroAt(wx, wy) {
+    const rx0 = Math.floor(wx / this.G), ry0 = Math.floor(wy / this.G);
     let best = null, bd = Infinity;
     for (let ry = ry0 - 1; ry <= ry0 + 1; ry++) for (let rx = rx0 - 1; rx <= rx0 + 1; rx++) {
-      const p = this.regionPoint(rx, ry);
-      const d = (p[0] - wx) ** 2 + (p[1] - wy) ** 2;
-      if (d < bd) { bd = d; best = [rx, ry]; }
+      const c = this.macroSeed(rx, ry), d = Math.hypot(c.px - wx, c.py - wy) / c.biome.scale;
+      if (d < bd) { bd = d; best = c; }
     }
-    return this.regionBiome(best[0], best[1]);
+    return best.biome;
+  }
+  patchCell(cx, cy) {
+    const key = cx + ',' + cy; let c = this.patchCache.get(key);
+    if (c !== undefined) return c;
+    c = null;
+    if (this.patches.length && rand01(this.seed, cx, cy, 51) < PATCH_CHANCE) {
+      const px = (cx + 0.2 + 0.6 * rand01(this.seed, cx, cy, 52)) * PATCH, py = (cy + 0.2 + 0.6 * rand01(this.seed, cx, cy, 53)) * PATCH;
+      let r = rand01(this.seed, cx, cy, 54) * this.pwsum, b = this.patches[this.patches.length - 1];
+      for (const p of this.patches) { r -= p.weight; if (r <= 0) { b = p; break; } }
+      const host = this.macroAt(px, py);
+      const ok = (!b.inside.length || b.inside.includes(host.id)) && Math.hypot(px, py) > 900;       // never on top of the starting area
+      if (ok) c = { px, py, biome: b, rad: b.scale * TPM / 2 * (0.8 + 0.4 * rand01(this.seed, cx, cy, 55)) };
+    }
+    this.patchCache.set(key, c); return c;
+  }
+  biomeAt(x, y) {
+    // domain-warp so borders wiggle instead of being straight lines
+    const wx = x + noise1(this.seed ^ 0x51, y / 700) * 120 + noise1(this.seed ^ 0x52, y / 90) * 12;
+    const wy = y + noise1(this.seed ^ 0x77, x / 700) * 120 + noise1(this.seed ^ 0x78, x / 90) * 12;
+    const cx0 = Math.floor(wx / PATCH), cy0 = Math.floor(wy / PATCH);
+    for (let cy = cy0 - 1; cy <= cy0 + 1; cy++) for (let cx = cx0 - 1; cx <= cx0 + 1; cx++) {
+      const c = this.patchCell(cx, cy);
+      if (c && Math.hypot(c.px - wx, c.py - wy) < c.rad) return c.biome;
+    }
+    return this.macroAt(wx, wy);
   }
 
   // ---------------------------------------------------------------- roads
-  roadY(j, x) { return j * S + noise1(this.seed ^ (0x1000 + j * 7919), x / 42) * 5.5; }
-  roadX(i, y) { return i * S + noise1(this.seed ^ (0x2000 + i * 7919), y / 42) * 5.5; }
+  roadY(j, x) { return j * S + noise1(this.seed ^ (0x1000 + j * 7919), x / 320) * 30 + noise1(this.seed ^ (0x1800 + j * 7919), x / 70) * 3; }
+  roadX(i, y) { return i * S + noise1(this.seed ^ (0x2000 + i * 7919), y / 320) * 30 + noise1(this.seed ^ (0x2800 + i * 7919), y / 70) * 3; }
   roadCenter(axis, idx, along) { return axis === 'H' ? this.roadY(idx, along) : this.roadX(idx, along); }
   // distance to the nearest road centre line (+ which road)
   roadAt(x, y) {
@@ -85,6 +122,11 @@ export class World {
     const biome = this.biomeAt(px, py);
     let r = rand01(this.seed, salt, k, side + 9), def = null;
     for (const rs of biome._roadside) { r -= rs.chance; if (r < 0) { def = rs.def; break; } }
+    // TEMPORARY until settlements exist: guarantee a gas station, a shop and a race pad near the spawn point
+    if (axis === 'H' && idx === 0 && k <= 1) {
+      const pick = (kind) => (biome._roadside.find((x) => x.def.kind === kind) || {}).def || null;
+      if (k === 0 && side === 1) def = pick('gas_station'); else if (k === 0 && side === -1) def = pick('shop'); else if (k === 1 && side === 1) def = pick('race_pad');
+    }
     let b = null;
     if (def) {
       const w = def.width, d = def.depth;

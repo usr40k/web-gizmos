@@ -47,6 +47,18 @@ and tells you which one is missing.
 - A new biome only shows up if its `weight` is > 0. `weight: 1` is as common as the other base biomes.
 - Only the base pack sets `start: true`. Leave it out.
 
+## Biome size and patches
+
+`scale` is roughly **how many minutes it takes to drive across** the biome: 1 is tiny, 15 is vast, default 5. The world is
+built from big regions (each biome claims space in proportion to its scale) and highways are about 1.5 minutes apart, so
+there is a lot of empty road between towns. Keep `scale` between 3 and 12 for normal biomes.
+
+For small features (an oasis, a crater, a glacier lake) make a **patch biome**: `patch: true`, `scale: 1` to `2.5`, and
+`inside: ['desert']` to limit where it can appear (leave `inside` empty for anywhere). Patches are dropped into bigger biomes and
+override them locally; give them their own palette, props, shop stock and fuel price (a remote oasis can charge a lot for fuel).
+
+Check how a pack changes the world with `node tools/world-stats.mjs <seed>`, which prints how many minutes each biome takes to cross.
+
 ## Recipes
 
 **New part** (add to `parts`):

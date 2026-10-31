@@ -8,7 +8,7 @@ export default {
   // ---------------------------------------------------------------- biomes
   biomes: [
     {
-      id: 'meadow', name: 'Greenwood Meadows', start: true, weight: 2,
+      id: 'meadow', scale: 4, name: 'Greenwood Meadows', start: true, weight: 2,
       palette: { ground: ['#5fa34a', '#58994a', '#67ad52', '#4f9145'], road: '#4b4b55', roadLine: '#e8e4b8', speck: '#86d26e' },
       terrain: { grip: 0.75, drag: 1.0 },
       props: [{ prop: 'oak', density: 0.05 }, { prop: 'pine_green', density: 0.025 }, { prop: 'boulder_grey', density: 0.01 }],
@@ -17,7 +17,7 @@ export default {
       fuelPrice: 1.0, coins: 0.3,
     },
     {
-      id: 'desert', name: 'Sunscar Desert', weight: 1.5,
+      id: 'desert', scale: 8, name: 'Sunscar Desert', weight: 1.5,
       palette: { ground: ['#e9bf72', '#e2b565', '#edc57d', '#dcab5c'], road: '#5a4a40', roadLine: '#f6e7a0', speck: '#f7d88f' },
       terrain: { grip: 0.55, drag: 1.6 },
       props: [{ prop: 'cactus_green', density: 0.025 }, { prop: 'sandrock', density: 0.02 }],
@@ -26,7 +26,7 @@ export default {
       fuelPrice: 1.6, coins: 0.2,
     },
     {
-      id: 'neon', name: 'Neon Flats', weight: 1,
+      id: 'neon', scale: 3, name: 'Neon Flats', weight: 1,
       palette: { ground: ['#1a1233', '#20163d', '#161029', '#241946'], road: '#0b0b14', roadLine: '#00ffff', speck: '#6a3cff' },
       terrain: { grip: 0.9, drag: 0.9 },
       props: [{ prop: 'crystal_magenta', density: 0.02 }, { prop: 'crystal_cyan', density: 0.02 }, { prop: 'glowshroom', density: 0.015 }, { prop: 'pylon', density: 0.006 }],
@@ -35,7 +35,7 @@ export default {
       fuelPrice: 1.3, coins: 0.35,
     },
     {
-      id: 'tundra', name: 'Frostline Tundra', weight: 1,
+      id: 'tundra', scale: 10, name: 'Frostline Tundra', weight: 1,
       palette: { ground: ['#e8f2fa', '#dceaf5', '#f2f8fd', '#d2e3f0'], road: '#5b6b7a', roadLine: '#ffffff', speck: '#ffffff' },
       terrain: { grip: 0.35, drag: 0.9 },          // slippery!
       roadSurface: { grip: 0.65, drag: 0.35 },     // icy roads
@@ -45,13 +45,31 @@ export default {
       fuelPrice: 1.2, coins: 0.25,
     },
     {
-      id: 'ashlands', name: 'Cinder Ashlands', weight: 1,
+      id: 'ashlands', scale: 6, name: 'Cinder Ashlands', weight: 1,
       palette: { ground: ['#3a2b2b', '#332626', '#41302e', '#2d2222'], road: '#1a1a1d', roadLine: '#ff7a2a', speck: '#ff5a1f' },
       terrain: { grip: 0.6, drag: 1.3 },
       props: [{ prop: 'dead_tree', density: 0.03 }, { prop: 'ash_rock', density: 0.03 }, { prop: 'obsidian', density: 0.012 }],
       roadside: [{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.2 }, { building: 'race_pad_neon', chance: 0.1 }],
       shopStock: ['engine_turbo', 'tires_offroad', 'body_aero'],
       fuelPrice: 0.8, coins: 0.2,
+    },
+    // ---- patch biomes: small areas (about a minute or two across) that appear INSIDE bigger biomes
+    {
+      id: 'oasis', name: 'Palm Oasis', patch: true, scale: 1.5, inside: ['desert'],
+      palette: { ground: ['#4fae6a', '#46a262', '#5bbb74', '#3f9a5c'], road: '#5a4a40', roadLine: '#f6e7a0', speck: '#9be0a8' },
+      terrain: { grip: 0.8, drag: 1.0 },
+      props: [{ prop: 'palm', density: 0.06 }, { prop: 'sandrock', density: 0.01 }],
+      roadside: [{ building: 'gas_adobe', chance: 0.45 }, { building: 'shop_adobe', chance: 0.35 }],
+      shopStock: ['tank_long', 'tires_offroad'],
+      fuelPrice: 2.2, coins: 0.5,
+    },
+    {
+      id: 'ash_crater', name: 'Smoldering Crater', patch: true, scale: 1.2, inside: ['ashlands'],
+      palette: { ground: ['#2a1414', '#331818', '#241010', '#3a1c1c'], road: '#140e0e', roadLine: '#ff5a1f', speck: '#ff8a2a' },
+      terrain: { grip: 0.5, drag: 1.5 },
+      props: [{ prop: 'obsidian', density: 0.04 }, { prop: 'ash_rock', density: 0.03 }],
+      roadside: [],
+      shopStock: [], fuelPrice: 1, coins: 0.6,
     },
   ],
 
@@ -70,6 +88,7 @@ export default {
     { id: 'ice_rock', shape: 'rock', color: '#a8c8e4', size: 1, radius: 0.45 },
     { id: 'dead_tree', shape: 'tree', color: '#3a2b2b', color2: '#2a1f1f', size: 0.9, radius: 0.3 },
     { id: 'ash_rock', shape: 'rock', color: '#4a3838', size: 1.1, radius: 0.5 },
+    { id: 'palm', shape: 'tree', color: '#3fae5a', color2: '#8a6a3a', size: 1.2, radius: 0.3 },
     { id: 'obsidian', shape: 'crystal', color: '#ff5a1f', size: 1.2, radius: 0.35 },
   ],
 
