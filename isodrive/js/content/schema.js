@@ -6,7 +6,8 @@
 export const SLOTS = ['engine', 'tires', 'tank', 'body'];
 export const STATS = ['accel', 'topSpeed', 'grip', 'offroad', 'fuelCap', 'efficiency'];
 export const SHAPES = ['tree', 'pine', 'cactus', 'rock', 'crystal', 'mushroom', 'box'];
-export const KINDS = ['gas_station', 'shop', 'race_pad'];
+export const KINDS = ['gas_station', 'shop', 'race_pad', 'decor'];
+export const SERVICES = ['gas_station', 'shop', 'race_pad'];       // building kinds a settlement can guarantee
 
 const ID = { type: 'string', required: true, pattern: '^[a-z0-9_]+$', max: 40,
   doc: 'Unique lowercase id: letters a-z, digits, underscore. Never reuse an id from another pack.' };
@@ -62,6 +63,10 @@ export const SCHEMA = {
           chance: { type: 'number', min: 0, max: 1, required: true },
         } },
       },
+      homes: {
+        type: 'list', doc: 'Decor buildings (houses, offices) this biome uses to fill towns. chance = relative weight. Empty = only the settlement\'s own buildings.',
+        of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
+      },
       shopStock: { type: 'list', of: { type: 'ref', ref: 'part' }, doc: 'Part ids sold by shops in this biome. Different biomes = different stock.' },
       fuelPrice: { type: 'number', min: 0.2, max: 6, default: 1, doc: 'Multiplier on the base fuel price.' },
       coins: { type: 'number', min: 0, max: 1, default: 0.25, doc: 'How often cash trails appear on roads (0 = never).' },
@@ -88,7 +93,7 @@ export const SCHEMA = {
     fields: {
       id: ID,
       name: NAME(),
-      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad' },
+      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | decor (decor = a house/tower that does nothing, used to fill towns)' },
       color: { type: 'color', required: true, doc: 'Wall color.' },
       roof: { type: 'color', optional: true, doc: 'Roof color (defaults to a lighter wall color).' },
       accent: color('#ffd24a', 'Sign and trim color.'),
@@ -119,6 +124,27 @@ export const SCHEMA = {
           fuelCap: { type: 'number', min: -20, max: 100, default: 0, doc: 'Tank size in litres (base 30).' },
           efficiency: { type: 'number', min: -0.5, max: 0.8, default: 0, doc: '+0.1 = 10% less fuel burned; negative = thirstier.' },
         },
+      },
+    },
+  },
+
+  settlement: {
+    plural: 'settlements',
+    doc: 'A town on a highway crossroads, sparse and far apart. It gets its own street grid, a few guaranteed services at the crossroads, and filler buildings. Add new sizes or flavours freely.',
+    fields: {
+      id: ID,
+      name: NAME('Type name, e.g. "Village".'),
+      size: { type: 'enum', values: ['outpost', 'village', 'town', 'city'], required: true, doc: 'Just a label for humans; the numbers below decide the real size.' },
+      radius: { type: 'int', min: 16, max: 400, default: 70, doc: 'Half-width of the town in tiles (outpost 30, village 75, town 150, city 260).' },
+      block: { type: 'int', min: 22, max: 44, default: 30, doc: 'Distance between streets in tiles.' },
+      density: { type: 'number', min: 0, max: 1, default: 0.6, doc: 'Fraction of lots that get a building.' },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common (outposts are common, cities rare).' },
+      starter: { type: 'bool', default: false, doc: 'true on ONE settlement: it is placed at the spawn point. Leave false in your own packs.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only appear in these biomes. Empty = anywhere.' },
+      services: { type: 'list', of: { type: 'enum', values: SERVICES }, doc: 'Up to 4 building KINDS guaranteed around the crossroads, e.g. ["gas_station", "shop"]. The look comes from the biome.' },
+      buildings: {
+        type: 'list', doc: 'Extra filler buildings for this settlement type (towers, warehouses...). chance = relative weight, mixed with the biome homes.',
+        of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
       },
     },
   },

@@ -52,6 +52,7 @@ export class Game {
     if (Math.abs(car.speed) < 4.5) {
       let best = ZONE_R;
       for (const b of world.buildingsInRect(car.x - 4, car.y - 4, car.x + 4, car.y + 4)) {
+        if (b.def.kind === 'decor') continue;
         const d = Math.hypot(b.doorX - car.x, b.doorY - car.y);
         if (d < best) { best = d; this.near = b; }
       }

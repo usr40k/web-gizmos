@@ -97,7 +97,7 @@ export class Renderer {
     }
     for (const b of blds) {
       const near = g.near === b;
-      drawZone(ctx, cam, b.doorX, b.doorY, 2.4, near ? '#ffffff' : b.def.accent, t);
+      if (b.def.kind !== 'decor') drawZone(ctx, cam, b.doorX, b.doorY, 2.4, near ? '#ffffff' : b.def.accent, t);
       ents.push({ d: b.x0 + b.y0 + 0.01, f: () => drawBuilding(ctx, cam, b, t) });
     }
 
