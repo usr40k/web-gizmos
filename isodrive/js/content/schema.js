@@ -6,8 +6,8 @@
 export const SLOTS = ['engine', 'tires', 'tank', 'body'];
 export const STATS = ['accel', 'topSpeed', 'grip', 'offroad', 'fuelCap', 'efficiency'];
 export const SHAPES = ['tree', 'pine', 'cactus', 'rock', 'crystal', 'mushroom', 'box'];
-export const KINDS = ['gas_station', 'shop', 'race_pad', 'decor'];
-export const SERVICES = ['gas_station', 'shop', 'race_pad'];       // building kinds a settlement can guarantee
+export const KINDS = ['gas_station', 'shop', 'race_pad', 'dealer', 'decor'];
+export const SERVICES = ['gas_station', 'shop', 'race_pad', 'dealer'];       // building kinds a settlement can guarantee
 
 const ID = { type: 'string', required: true, pattern: '^[a-z0-9_]+$', max: 40,
   doc: 'Unique lowercase id: letters a-z, digits, underscore. Never reuse an id from another pack.' };
@@ -94,7 +94,7 @@ export const SCHEMA = {
     fields: {
       id: ID,
       name: NAME(),
-      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | decor (decor = a house/tower that does nothing, used to fill towns)' },
+      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | dealer (sells vehicles) | decor (decor = a house/tower that does nothing, used to fill towns)' },
       color: { type: 'color', required: true, doc: 'Wall color.' },
       roof: { type: 'color', optional: true, doc: 'Roof color (defaults to a lighter wall color).' },
       accent: color('#ffd24a', 'Sign and trim color.'),
@@ -147,6 +147,29 @@ export const SCHEMA = {
         type: 'list', doc: 'Extra filler buildings for this settlement type (towers, warehouses...). chance = relative weight, mixed with the biome homes.',
         of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
       },
+    },
+  },
+
+  vehicle: {
+    plural: 'vehicles',
+    doc: 'A drivable vehicle base. Sold at dealers. Parts are added on top of these numbers. l100 is REAL-WORLD fuel use (litres per 100 km) of that class; the game stretches 1 tile to 100 m for fuel, so a sedan (8 L/100km) goes about 10 minutes on a tank. Tip: copy a sibling vehicle and change numbers.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Pickup".'),
+      shape: { type: 'enum', values: ['sedan', 'wagon', 'suv', 'pickup', 'van', 'tow', 'semi'], required: true, doc: 'Which body is drawn.' },
+      price: { type: 'int', min: 0, max: 1000000, required: true, doc: '0 = free starter (at least one vehicle must cost 0).' },
+      desc: { type: 'string', max: 80, optional: true },
+      length: { type: 'number', min: 1.2, max: 4, default: 1.64, doc: 'Tiles long (sedan 1.64). Longer vehicles are also harder to turn.' },
+      width: { type: 'number', min: 0.6, max: 1.6, default: 0.88 },
+      height: { type: 'number', min: 2, max: 10, default: 4.5, doc: 'Pixel height of the roof.' },
+      accel: { type: 'number', min: 2, max: 20, default: 9 },
+      topSpeed: { type: 'number', min: 5, max: 30, default: 14, doc: 'Tiles per second.' },
+      grip: { type: 'number', min: 1, max: 10, default: 5 },
+      offroad: { type: 'number', min: 0, max: 1, default: 0 },
+      turn: { type: 'number', min: 0.8, max: 3.5, default: 2.4, doc: 'Steering rate (semis 1.5, sedan 2.4).' },
+      brake: { type: 'number', min: 6, max: 40, default: 20 },
+      fuelCap: { type: 'number', min: 10, max: 1000, default: 50, doc: 'Tank litres.' },
+      l100: { type: 'number', min: 2, max: 80, default: 8, doc: 'Real-world average litres per 100 km: sedan 8, wagon 7.5, van 11, SUV 12.5, pickup 13, tow truck 25, semi 32-40.' },
     },
   },
 

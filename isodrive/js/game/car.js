@@ -2,14 +2,19 @@
 import { clamp } from '../util/rng.js';
 import { ROAD_HALF } from '../world/world.js';
 
-export const BASE = { accel: 9, topSpeed: 14, grip: 5, offroad: 0, fuelCap: 30, efficiency: 0 };
 export const FUEL_BASE_PRICE = 2;       // cash per litre
+export const FUEL_TILE_KM = 0.1;        // for fuel only, one tile counts as 100 m (see the vehicle schema doc)
 
-export function carStats(reg, equipped) {
-  const s = { ...BASE };
+// vehicle base + equipped parts. Part fuelCap is relative to a 30 L car, so a "+25 L" tank is +83% on any vehicle.
+export function carStats(reg, equipped, vehId) {
+  const v = reg.get('vehicle', vehId) || reg.list('vehicle')[0];
+  const s = { accel: v.accel, topSpeed: v.topSpeed, grip: v.grip, offroad: v.offroad, fuelCap: v.fuelCap, efficiency: 0, l100: v.l100, turn: v.turn, brake: v.brake,
+    R: 0.5 + Math.max(0, v.length - 1.64) * 0.12, veh: v };
   for (const id of Object.values(equipped)) {
     const p = reg.get('part', id);
-    if (p && p.stats) for (const k of Object.keys(s)) s[k] += p.stats[k] || 0;
+    if (!p || !p.stats) continue;
+    for (const k of ['accel', 'topSpeed', 'grip', 'offroad', 'efficiency']) s[k] += p.stats[k] || 0;
+    s.fuelCap += (p.stats.fuelCap || 0) * v.fuelCap / 30;
   }
   s.accel = Math.max(2, s.accel); s.topSpeed = Math.max(5, s.topSpeed); s.grip = Math.max(1, s.grip);
   s.fuelCap = Math.max(10, s.fuelCap); s.efficiency = clamp(s.efficiency, -0.5, 0.8); s.offroad = clamp(s.offroad, 0, 1);
@@ -42,8 +47,8 @@ export function stepCar(car, input, dt, world, stats, fuel) {
   const top = stats.topSpeed * (sf.road ? 1 : 1 / (0.6 + 0.4 * sf.drag));
 
   if (thr > 0) fwd += thr * stats.accel * sf.grip * dt * (1 - clamp(fwd / (top * 1.02), 0, 1) ** 2);
-  else if (thr < 0) fwd += (fwd > 0.5 ? thr * 22 : thr * stats.accel * 0.5) * dt;       // brake, then reverse
-  if (input.brake) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), 20 * dt);
+  else if (thr < 0) fwd += (fwd > 0.5 ? thr * stats.brake * 1.1 : thr * stats.accel * 0.5) * dt;       // brake, then reverse
+  if (input.brake) fwd -= Math.sign(fwd) * Math.min(Math.abs(fwd), stats.brake * dt);
   fwd -= fwd * Math.min(1, (sf.drag * 0.18 + 0.05) * dt * (thr > 0 ? 0.6 : 1.8));        // rolling drag
   fwd = clamp(fwd, -top * 0.35, top * 1.05);
 
@@ -51,7 +56,7 @@ export function stepCar(car, input, dt, world, stats, fuel) {
   const sp = Math.abs(fwd);
   const auth = clamp(sp / 3.5, 0, 1) * (1 - 0.35 * clamp(sp / (stats.topSpeed * 1.2), 0, 1));
   car.steer += (input.steer - car.steer) * Math.min(1, dt * 10);
-  car.h += car.steer * 2.4 * auth * (fwd >= 0 ? 1 : -1) * dt;
+  car.h += car.steer * stats.turn * auth * (fwd >= 0 ? 1 : -1) * dt;
 
   // lateral grip -> drifting when grip is low
   lat *= Math.exp(-stats.grip * sf.grip * dt * (input.brake ? 0.45 : 1));
@@ -64,7 +69,7 @@ export function stepCar(car, input, dt, world, stats, fuel) {
   // ---- collisions
   let hit = 0;
   const { circles, rects } = world.solidsNear(car.x, car.y, 3.2);
-  const R = 0.5;
+  const R = stats.R;
   for (const o of circles) {
     const dx = car.x - o.x, dy = car.y - o.y, d = Math.hypot(dx, dy), m = o.r + R;
     if (d < m && d > 1e-4) hit = Math.max(hit, bounce(car, dx / d, dy / d, m - d));
@@ -89,7 +94,10 @@ function bounce(car, nx, ny, pen) {
   return 0;
 }
 
-// litres per second
+// litres per second. Real-world shape: a base L/100km figure for the class, worse at high speed (drag grows with
+// speed squared), a little extra while accelerating, and a small idle burn.
 export function fuelBurn(stats, speed, thr) {
-  return (0.08 + 0.02 * Math.abs(speed) * Math.max(0, thr)) / (1 + stats.efficiency);
+  const v = Math.abs(speed), cruise = stats.topSpeed * 0.6;
+  const perTile = (stats.l100 / 100) * FUEL_TILE_KM * (0.75 + 0.5 * (v / cruise) ** 2) * (1 + 0.6 * Math.max(0, thr) * Math.max(0, 1 - v / stats.topSpeed));
+  return (stats.l100 * 0.0001 + perTile * v) / (1 + stats.efficiency);
 }

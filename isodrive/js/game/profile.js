@@ -12,6 +12,10 @@ export class Profile {
     this.color = typeof data.color === 'string' && /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : CAR_COLORS[0];
     this.fuel = Number.isFinite(data.fuel) ? data.fuel : null;       // null -> full tank
     this.owned = new Set(Array.isArray(data.owned) ? data.owned : []);
+    const vs = reg.list('vehicle').slice().sort((a, b) => a.price - b.price);
+    this.garage = new Set((Array.isArray(data.garage) ? data.garage : []).filter((id) => vs.some((v) => v.id === id)));
+    if (vs[0]) this.garage.add(vs[0].id);
+    this.vehicle = this.garage.has(data.vehicle) ? data.vehicle : (vs[0] && vs[0].id);
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -30,7 +34,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {
@@ -41,6 +45,14 @@ export class Profile {
     this.cash -= p.price; this.owned.add(partId); this.equipped[p.slot] = partId;
     return null;
   }
+  buyVehicle(id) {
+    const v = this.reg.get('vehicle', id);
+    if (!v) return 'Unknown vehicle';
+    if (this.garage.has(id)) return 'Already owned';
+    if (this.cash < v.price) return 'Not enough cash';
+    this.cash -= v.price; this.garage.add(id); this.vehicle = id; return null;
+  }
+  selectVehicle(id) { if (!this.garage.has(id)) return false; this.vehicle = id; return true; }
   equip(partId) {
     const p = this.reg.get('part', partId);
     if (!p || !this.owned.has(partId)) return false;

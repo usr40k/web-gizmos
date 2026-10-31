@@ -22,7 +22,7 @@ export class Game {
     transport.onStatus = (text, ok) => ui.status(text, ok);
   }
 
-  recompute() { this.stats = carStats(this.reg, this.profile.equipped); this.fuel = Math.min(this.fuel ?? Infinity, this.stats.fuelCap); }
+  recompute() { this.stats = carStats(this.reg, this.profile.equipped, this.profile.vehicle); this.fuel = Math.min(this.fuel ?? Infinity, this.stats.fuelCap); }
   markDirty() { this.dirty = true; }
 
   // ------------------------------------------------------------------ per-frame
@@ -71,7 +71,7 @@ export class Game {
 
     // network
     this.beaconT += dt * 1000;
-    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; this.transport.sendBeacon(packBeacon(car, this.profile.name, this.profile.color)); }
+    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; this.transport.sendBeacon(packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle)); }
     this.ghosts = this.peers.tick(dt, this.now);
 
     // persistence
@@ -100,6 +100,7 @@ export class Game {
       return { text: `[E] Refuel ${need.toFixed(0)}L - $${cost}  (${d.name})`, action: () => this.refuel(b) };
     }
     if (d.kind === 'shop') return { text: `[E] Browse ${d.name}`, action: () => { this.flags.shop = true; this.ui.openShop(b, this); } };
+    if (d.kind === 'dealer') return { text: `[E] Browse ${d.name}`, action: () => this.ui.openDealer(this) };
     if (d.kind === 'race_pad') {
       const r = this.reg.get('race', d.race);
       return this.race ? { text: '[E] Cancel current race', action: () => this.cancelRace('Race cancelled') } : { text: `[E] Start ${r.name} (par ${r.parTime}s, $${r.payout})`, action: () => this.startRace(b) };
@@ -140,6 +141,8 @@ export class Game {
   // Parts: buying and equipping go through here so stats and saves stay consistent.
   buy(partId) { const e = this.profile.buy(partId); if (!e) { this.recompute(); this.markDirty(); this.save(); } return e; }
   equip(partId) { if (this.profile.equip(partId)) { this.recompute(); this.markDirty(); this.save(); } }
+  buyVehicle(id) { const e = this.profile.buyVehicle(id); if (!e) { this.recompute(); this.markDirty(); this.save(); } return e; }
+  selectVehicle(id) { if (this.profile.selectVehicle(id)) { this.recompute(); this.markDirty(); this.save(); } }
   setColor(c) { this.profile.color = c; this.markDirty(); }
 
   // ------------------------------------------------------------------ races

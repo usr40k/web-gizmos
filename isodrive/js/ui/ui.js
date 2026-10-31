@@ -101,18 +101,40 @@ export class UI {
 
   // ---------------------------------------------------------------- shop / garage
   openShop(b, game) { this.game = game; this.partsModal(b.def.name, game, b.biome.shopStock.map((id) => game.reg.get('part', id)).filter(Boolean), true); }
+  openDealer(game) { this.game = game; this.modal('Auto Dealer', this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true)); }
+  vehiclesBlock(game, list, dealer) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile;
+      if (dealer) body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
+      body.append(el('h3', { text: dealer ? 'vehicles' : 'vehicle' }));
+      for (const v of list) {
+        const have = P.garage.has(v.id), cur = P.vehicle === v.id;
+        const chips = el('div', { class: 'chips' }, ...[`${v.topSpeed} top`, `${v.fuelCap}L tank`, `${v.l100} L/100km`, `range ~${Math.round(v.fuelCap / v.l100 * 100)} km`].map((t) => el('span', { class: 'chip', text: t })));
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', disabled: true, text: 'Driving' });
+        else if (have) btn = el('button', { class: 'btn', text: 'Drive', onclick: () => { game.selectVehicle(v.id); render(); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${v.price}`, disabled: P.cash < v.price, onclick: () => { const e = game.buyVehicle(v.id); this.toast(e || `Bought ${v.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: v.name }), v.desc ? el('small', { text: v.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
   openGarage(game) {
     this.game = game;
     const owned = [...game.profile.owned].map((id) => game.reg.get('part', id)).filter(Boolean);
-    this.partsModal('Garage', game, owned, false);
+    this.partsModal('Garage', game, owned, false, game.reg.list('vehicle').filter((v) => game.profile.garage.has(v.id)));
   }
-  partsModal(title, game, parts, shop) {
+  partsModal(title, game, parts, shop, vehicles) {
     const body = el('div', { class: 'parts' });
     const render = () => {
       body.replaceChildren();
       const P = game.profile;
       body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
       if (!shop) body.append(this.colorRow(game));
+      if (vehicles && vehicles.length > 1) { const vb = this.vehiclesBlock(game, vehicles, false); body.append(vb); }
       for (const slot of SLOTS) {
         const list = parts.filter((p) => p.slot === slot);
         if (!list.length) continue;

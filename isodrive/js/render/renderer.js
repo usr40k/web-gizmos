@@ -112,8 +112,8 @@ export class Renderer {
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });
 
     // cars (ghosts first so the player is drawn over on ties)
-    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9) });
-    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor) });
+    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, this.world.reg.get('vehicle', o.veh)) });
+    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor, 1, g.veh) });
 
     ents.sort((a, b) => a.d - b.d);
     for (const e of ents) e.f();

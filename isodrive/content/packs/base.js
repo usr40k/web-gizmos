@@ -108,6 +108,7 @@ export default {
     { id: 'shop_adobe', name: 'Dune Bazaar', kind: 'shop', color: '#c9743f', accent: '#f0e040', width: 6, depth: 4, height: 13, sign: 'SHOP' },
     { id: 'shop_neon', name: 'Chrome Lab', kind: 'shop', color: '#2b1450', accent: '#ff2bd6', width: 6, depth: 4, height: 15, sign: 'LAB' },
     { id: 'shop_frost', name: 'Ice Garage', kind: 'shop', color: '#9fc4e0', roof: '#ffffff', accent: '#2a5a8a', width: 6, depth: 4, height: 14, sign: 'PARTS' },
+    { id: 'dealership', name: 'Auto Dealer', kind: 'dealer', color: '#dfe6ee', roof: '#3a5a8a', accent: '#4a8af0', width: 10, depth: 6, height: 11, sign: 'CARS' },
     // decor: filler buildings for towns (kind 'decor' = no interaction)
     { id: 'house_std', name: 'House', kind: 'decor', color: '#e8dcc0', roof: '#a8483a', accent: '#6a8cd9', width: 4, depth: 4, height: 9 },
     { id: 'house_red', name: 'Brick House', kind: 'decor', color: '#b4574a', roof: '#4a3a3a', accent: '#ffe9a8', width: 5, depth: 4, height: 9 },
@@ -125,8 +126,19 @@ export default {
   settlements: [
     { id: 'roadside_outpost', name: 'Outpost', size: 'outpost', radius: 30, block: 30, density: 0.4, weight: 5, services: ['gas_station'] },
     { id: 'village', name: 'Village', size: 'village', radius: 75, block: 30, density: 0.6, weight: 3, starter: true, services: ['gas_station', 'shop', 'race_pad'] },
-    { id: 'town', name: 'Town', size: 'town', radius: 150, block: 32, density: 0.7, weight: 1.5, services: ['gas_station', 'shop', 'race_pad'], buildings: [{ building: 'warehouse', chance: 0.25 }] },
-    { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'shop', 'race_pad'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
+    { id: 'town', name: 'Town', size: 'town', radius: 150, block: 32, density: 0.7, weight: 1.5, services: ['gas_station', 'shop', 'race_pad', 'dealer'], buildings: [{ building: 'warehouse', chance: 0.25 }] },
+    { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'dealer', 'race_pad'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
+  ],
+
+  vehicles: [
+    { id: 'sedan', name: 'Sedan', shape: 'sedan', price: 0, desc: 'Cheap and frugal. 8 L/100km.', accel: 9, topSpeed: 14, grip: 5, fuelCap: 50, l100: 8 },
+    { id: 'wagon', name: 'Station Wagon', shape: 'wagon', price: 1200, desc: 'Sips fuel, carries lots. 7.5 L/100km.', length: 1.8, accel: 8.5, topSpeed: 13.5, grip: 5, offroad: 0.1, fuelCap: 60, l100: 7.5, turn: 2.3 },
+    { id: 'van', name: 'Van', shape: 'van', price: 2000, desc: 'Big tank, slow to turn. 11 L/100km.', length: 1.95, width: 0.95, height: 7, accel: 6.5, topSpeed: 11.5, grip: 4, offroad: 0.1, fuelCap: 70, l100: 11, turn: 2.0, brake: 18 },
+    { id: 'suv', name: 'SUV', shape: 'suv', price: 2500, desc: 'Rough-road capable, thirsty. 12.5 L/100km.', length: 1.75, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.6, offroad: 0.35, fuelCap: 70, l100: 12.5, turn: 2.2 },
+    { id: 'pickup', name: 'Pickup', shape: 'pickup', price: 3000, desc: 'Tough and roomy. 13 L/100km.', length: 1.95, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.4, offroad: 0.3, fuelCap: 80, l100: 13, turn: 2.1 },
+    { id: 'tow_truck', name: 'Tow Truck', shape: 'tow', price: 6000, desc: 'Heavy diesel, big tank. 25 L/100km.', length: 2.3, width: 1.0, height: 7, accel: 6, topSpeed: 11, grip: 3.8, offroad: 0.25, fuelCap: 120, l100: 25, turn: 1.85, brake: 16 },
+    { id: 'semi_2axle', name: 'Semi (2-axle)', shape: 'semi', price: 9000, desc: 'Road tractor. 32 L/100km.', length: 2.4, width: 1.0, height: 8, accel: 5, topSpeed: 10, grip: 3.5, offroad: 0.1, fuelCap: 200, l100: 32, turn: 1.6, brake: 14 },
+    { id: 'semi_3axle', name: 'Semi (3-axle)', shape: 'semi', price: 14000, desc: 'Heavy haul tractor. 38 L/100km.', length: 2.7, width: 1.05, height: 8, accel: 4.5, topSpeed: 9.5, grip: 3.3, offroad: 0.15, fuelCap: 280, l100: 38, turn: 1.45, brake: 13 },
   ],
 
   wrecks: [
