@@ -1,4 +1,5 @@
 // Game orchestration: ties world, car, economy, races and networking together. No DOM here except through `ui`.
+import { stepTrailer } from './trailer.js';
 import { newCar, stepCar, carStats, fuelBurn, FUEL_BASE_PRICE } from './car.js';
 import { Peers, packBeacon } from '../net/transport.js';
 import { Tutorial } from './tutorial.js';
@@ -22,14 +23,20 @@ export class Game {
     transport.onStatus = (text, ok) => ui.status(text, ok);
   }
 
-  recompute() { this.stats = carStats(this.reg, this.profile.equipped, this.profile.vehicle); this.fuel = Math.min(this.fuel ?? Infinity, this.stats.fuelCap); }
+  recompute() { this.stats = carStats(this.reg, this.profile.equipped, this.profile.vehicle, this.profile.trailer); this.fuel = Math.min(this.fuel ?? Infinity, this.stats.fuelCap); }
   markDirty() { this.dirty = true; }
 
   // ------------------------------------------------------------------ per-frame
   update(dt, input) {
     this.t += dt; this.now = Date.now();
     const { car, world } = this;
+    const h0 = car.h;
     const out = stepCar(car, input, dt, world, this.stats, this.fuel);
+    if (this.stats.trailer) {
+      if (car.th === undefined) car.th = car.h;
+      const yaw = Math.atan2(Math.sin(car.h - h0), Math.cos(car.h - h0)) / dt;
+      if (stepTrailer(car, this.stats.veh, this.stats.trailer, dt, yaw)) { const k = Math.max(0, 1 - 2.5 * dt); car.vx *= k; car.vy *= k; car.speed *= k; }
+    } else car.th = undefined;
     this.fuel = Math.max(0, this.fuel - fuelBurn(this.stats, car.speed, out.thr) * dt);
     this.profile.stats.km += Math.abs(car.speed) * dt / 1000;
     this.speedMax = Math.max(this.speedMax, Math.abs(car.speed));
@@ -71,7 +78,7 @@ export class Game {
 
     // network
     this.beaconT += dt * 1000;
-    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; this.transport.sendBeacon(packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle)); }
+    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; this.transport.sendBeacon(packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle, this.profile.trailer)); }
     this.ghosts = this.peers.tick(dt, this.now);
 
     // persistence
@@ -134,7 +141,7 @@ export class Game {
     const p = this.world.nearestRoadPoint(this.car.x, this.car.y);
     const cost = this.towCost();
     this.profile.cash -= cost; this.fuel = Math.min(this.stats.fuelCap, 6);
-    Object.assign(this.car, { x: p.x, y: p.y, h: p.h, vx: 0, vy: 0, speed: 0 });
+    Object.assign(this.car, { x: p.x, y: p.y, h: p.h, th: p.h, vx: 0, vy: 0, speed: 0 });
     this.ui.toast(`Towed to the road (-$${cost}, +6L)`, 2500); this.markDirty();
   }
 
@@ -142,7 +149,9 @@ export class Game {
   buy(partId) { const e = this.profile.buy(partId); if (!e) { this.recompute(); this.markDirty(); this.save(); } return e; }
   equip(partId) { if (this.profile.equip(partId)) { this.recompute(); this.markDirty(); this.save(); } }
   buyVehicle(id) { const e = this.profile.buyVehicle(id); if (!e) { this.recompute(); this.markDirty(); this.save(); } return e; }
-  selectVehicle(id) { if (this.profile.selectVehicle(id)) { this.recompute(); this.markDirty(); this.save(); } }
+  selectVehicle(id) { if (this.profile.selectVehicle(id)) { this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } }
+  buyTrailer(id) { const e = this.profile.buyTrailer(id); if (!e) { this.markDirty(); this.save(); } return e; }
+  hitch(id) { const e = this.profile.hitch(id); if (!e) { this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } return e; }
   setColor(c) { this.profile.color = c; this.markDirty(); }
 
   // ------------------------------------------------------------------ races

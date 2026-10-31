@@ -1,6 +1,7 @@
 // Procedural pixel sprites. A "shape" is just a function here - content packs pick a shape + colors,
 // so adding scenery never needs new drawing code. To add a NEW shape: add a function below and its name in
 // SHAPES (content/schema.js).
+import { trailerPose } from '../game/trailer.js';
 import { fillPoly, rect, fillEllipse, strokeEllipse, shade, mix, drawTextCentered, diamond, textWidth } from './pixel.js';
 
 const LX = -0.447, LY = 0.895;     // light direction (from the left-front)
@@ -193,7 +194,7 @@ export function drawCoin(ctx, cam, x, y, t) {
 // ------------------------------------------------------------------ cars
 const GLASS = '#8fd0f0';
 // Vehicle body from boxes. `v` is a vehicle definition (shape, length, width, height); missing = sedan.
-export function drawCar(ctx, cam, car, color, alpha = 1, v) {
+export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer) {
   const { x, y, h } = car;
   const L = (v && v.length) || 1.64, W = (v && v.width) || 0.88, shape = (v && v.shape) || 'sedan', H = (v && v.height) || 4.5;
   const c = Math.cos(h), s = Math.sin(h);
@@ -201,8 +202,9 @@ export function drawCar(ctx, cam, car, color, alpha = 1, v) {
   ctx.globalAlpha = alpha;
   ground(ctx, sx, sy + 1, L * 5.6, W * 4.6, 0.28 * alpha);
   const at = (f) => [x + c * f * L, y + s * f * L];                      // point along the vehicle, f = -0.5..0.5
-  const box = (f, len, wid, z, ht, col, top) => { const [bx, by] = at(f); drawBox(ctx, cam, bx, by, len * L / 2, wid * W / 2, h, z, ht, col, top); };
-  box(0, 1, 1, 0, 2, '#1b1b22');
+  const parts = [];                                                          // painted back to front so rear parts never cover front ones
+  const box = (f, len, wid, z, ht, col, top) => { const [bx, by] = at(f); parts.push({ d: bx + by + z * 0.01, bx, by, hl: len * L / 2, hw: wid * W / 2, ang: h, z, ht, col, top }); };
+  box(0, 1, 1, 0, 2, '#1b1b22'); parts[0].d = -1e9;
   const dark = shade(color, 0.62);
   if (shape === 'sedan') { box(0, 1, 1, 2, 2.5, color, color); box(-0.1, 0.5, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
   else if (shape === 'wagon') { box(0, 1, 1, 2, 2.5, color, color); box(-0.14, 0.7, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
@@ -210,17 +212,62 @@ export function drawCar(ctx, cam, car, color, alpha = 1, v) {
   else if (shape === 'pickup') { box(0, 1, 1, 2, 2.2, color, color); box(0.18, 0.4, 0.88, 4.2, 2.8, GLASS, shade(color, 0.92)); box(-0.28, 0.42, 0.96, 4.2, 0.9, dark, dark); }
   else if (shape === 'van') { box(-0.08, 0.84, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.2, 0.92, 2, 3, color, color); box(0.28, 0.06, 0.8, 4.6, 2.4, GLASS, GLASS); }
   else if (shape === 'tow') { box(0.28, 0.4, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.1, 0.84, 4.8, 2.4, GLASS, GLASS); box(-0.2, 0.62, 0.96, 2, 1, '#6c7480', '#8a94a2'); box(0.2, 0.1, 0.6, H, 1, '#ffb020', '#ffd24a'); }
-  else if (shape === 'semi') { box(0.24, 0.42, 1, 2, H - 2, color, shade(color, 1.1)); box(0.38, 0.1, 0.84, 5, 2.6, GLASS, GLASS); box(-0.26, 0.4, 0.84, 2, 1.2, '#3a3a44', '#4a4a56'); box(0.0, 0.08, 1.0, 2, H - 3.5, dark, dark); }
+  else if (shape === 'semi') { box(0.24, 0.42, 1, 2, H - 2, color, shade(color, 1.1)); box(0.38, 0.1, 0.84, 5, 2.6, GLASS, GLASS); box(-0.12, 0.76, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.3, 0.3, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44'); box(0.02, 0.14, 1, 2, H - 3.5, dark, dark); }
   else { box(0, 1, 1, 2, 2.5, color, color); box(-0.1, 0.5, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
+  let pose = null;
+  if (trailer && trailer.def && v) { pose = trailerPose(car, v, trailer.def, trailer.th); addTrailer(parts, ctx, cam, pose, trailer.def, v); }
+  parts.sort((a, b) => a.d - b.d);
+  for (const q of parts) drawBox(ctx, cam, q.bx, q.by, q.hl, q.hw, q.ang, q.z, q.ht, q.col, q.top);
+  if (pose) {                                  // trailer tail lights
+    const t = trailer.def, ct = Math.cos(pose.th), st = Math.sin(pose.th);
+    if (ct + st < 0) for (const sg of [-1, 1]) {
+      const [lx, ly] = cam.px(pose.x - ct * t.length / 2 - st * sg * t.width * 0.4, pose.y - st * t.length / 2 + ct * sg * t.width * 0.4, 3);
+      rect(ctx, lx, ly, 1, 1, '#ff3b3b');
+    }
+  }
   // lights, only on the visible end
   const front = c + s > 0;
   const ex = (front ? 1 : -1) * L / 2, rx2 = -s * W * 0.34, ry2 = c * W * 0.34;
   const lz = Math.min(3.4, H - 1);
-  for (const sg of [-1, 1]) {
+  if (front || !pose) for (const sg of [-1, 1]) {
     const [lx, ly] = cam.px(x + ex * c + sg * rx2, y + ex * s + sg * ry2, lz);
     rect(ctx, lx, ly, 1, 1, front ? '#fff7a8' : '#ff3b3b');
   }
   ctx.globalAlpha = 1;
+}
+
+// trailer boxes, appended to the same depth-sorted list as the tractor
+function addTrailer(parts, ctx, cam, pose, t, v) {
+  const L = t.length, W = t.width, H = t.height, th = pose.th, ct = Math.cos(th), st = Math.sin(th);
+  const tb = (f, len, wid, z, ht, col, top, lat = 0) => {
+    const bx = pose.x + ct * f * L - st * lat * W, by = pose.y + st * f * L + ct * lat * W;
+    parts.push({ d: bx + by + z * 0.01, bx, by, hl: len * L / 2, hw: wid * W / 2, ang: th, z, ht, col, top });
+  };
+  const [gx, gy] = cam.px(pose.x, pose.y, 0);
+  ground(ctx, gx, gy + 1, L * 5.6, W * 4.6, 0.26);
+  const body = t.color, top = shade(t.color, 1.1);
+  const gap = Math.hypot(pose.hx - pose.x, pose.hy - pose.y) - L / 2;
+  if (gap > 0.05) parts.push({ d: pose.hx + pose.hy - 5, bx: pose.hx - ct * gap / 2, by: pose.hy - st * gap / 2, hl: gap / 2 + 0.05, hw: 0.05, ang: th, z: 1.5, ht: 0.8, col: '#2a2a30', top: '#3a3a44' });
+  const ax = v.coupling === 'fifth' ? -0.3 : -0.1;
+  tb(0, 0.9, 0.82, 0.8, 1.4, '#2a2a30', '#2a2a30');
+  tb(ax, 0.2, 1.06, 0, 2.2, '#15151a', '#15151a');
+  if (v.coupling === 'fifth') tb(ax - 0.14, 0.2, 1.06, 0, 2.2, '#15151a', '#15151a');
+  if (t.shape === 'open') {
+    tb(0, 1, 1, 2, 0.8, '#6a6e76', '#80858e');
+    for (const lat of [-0.46, 0.46]) tb(0, 1, 0.08, 2.8, Math.max(1, H - 2.6), body, top, lat);
+    tb(0.46, 0.06, 1, 2.8, Math.max(1, H - 2.6), body, top); tb(-0.47, 0.04, 1, 2.8, 1.2, shade(body, 0.8), shade(body, 0.8));
+  } else if (t.shape === 'flatbed') {
+    tb(0, 1, 1, 2, 0.9, body, top);
+    for (const f of [-0.46, 0.46]) for (const lat of [-0.48, 0.48]) tb(f, 0.04, 0.05, 2.9, 2.2, '#3a3a44', '#3a3a44', lat);
+    tb(0.46, 0.04, 0.95, 2.9, 2.2, '#3a3a44', '#3a3a44');
+  } else if (t.shape === 'tanker') {
+    tb(0, 1, 0.9, 2, (H - 2) * 0.55, body, top);
+    tb(0, 1, 0.62, 2 + (H - 2) * 0.55, (H - 2) * 0.45, shade(body, 1.08), shade(body, 1.2));
+    tb(0.15, 0.07, 0.94, 2, (H - 2) * 0.55, t.accent, t.accent);
+  } else {
+    tb(0, 1, 1, 2, H - 2, body, top);
+    tb(0, 1.002, 1.02, 2 + (H - 2) * 0.42, 1.2, t.accent, t.accent);
+  }
 }
 
 // wrecked vehicle: a tilted box with a dark hood and a puff of smoke

@@ -6,7 +6,7 @@ export const FUEL_BASE_PRICE = 2;       // cash per litre
 export const FUEL_TILE_KM = 0.1;        // for fuel only, one tile counts as 100 m (see the vehicle schema doc)
 
 // vehicle base + equipped parts. Part fuelCap is relative to a 30 L car, so a "+25 L" tank is +83% on any vehicle.
-export function carStats(reg, equipped, vehId) {
+export function carStats(reg, equipped, vehId, trailerId) {
   const v = reg.get('vehicle', vehId) || reg.list('vehicle')[0];
   const s = { accel: v.accel, topSpeed: v.topSpeed, grip: v.grip, offroad: v.offroad, fuelCap: v.fuelCap, efficiency: 0, l100: v.l100, turn: v.turn, brake: v.brake,
     R: 0.5 + Math.max(0, v.length - 1.64) * 0.12, veh: v };
@@ -16,6 +16,8 @@ export function carStats(reg, equipped, vehId) {
     for (const k of ['accel', 'topSpeed', 'grip', 'offroad', 'efficiency']) s[k] += p.stats[k] || 0;
     s.fuelCap += (p.stats.fuelCap || 0) * v.fuelCap / 30;
   }
+  const t = trailerId && reg.get('trailer', trailerId);
+  if (t) { s.trailer = t; s.accel *= 1 - 0.4 * t.load; s.topSpeed *= 1 - 0.12 * t.load; s.brake *= 1 - 0.3 * t.load; s.grip *= 1 - 0.1 * t.load; s.l100 *= 1 + 0.4 * t.load; }
   s.accel = Math.max(2, s.accel); s.topSpeed = Math.max(5, s.topSpeed); s.grip = Math.max(1, s.grip);
   s.fuelCap = Math.max(10, s.fuelCap); s.efficiency = clamp(s.efficiency, -0.5, 0.8); s.offroad = clamp(s.offroad, 0, 1);
   return s;

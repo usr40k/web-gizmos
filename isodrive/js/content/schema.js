@@ -169,7 +169,28 @@ export const SCHEMA = {
       turn: { type: 'number', min: 0.8, max: 3.5, default: 2.4, doc: 'Steering rate (semis 1.5, sedan 2.4).' },
       brake: { type: 'number', min: 6, max: 40, default: 20 },
       fuelCap: { type: 'number', min: 10, max: 1000, default: 50, doc: 'Tank litres.' },
+      coupling: { type: 'enum', values: ['ball', 'fifth'], default: 'ball', doc: 'ball = bumper hitch trailers; fifth = semi tractors with fifth-wheel trailers.' },
+      tow: { type: 'number', min: 0, max: 3, default: 0.4, doc: 'Heaviest trailer load it can pull (trailer.load, 0.3 light ... 1.2 heavy).' },
       l100: { type: 'number', min: 2, max: 80, default: 8, doc: 'Real-world average litres per 100 km: sedan 8, wagon 7.5, van 11, SUV 12.5, pickup 13, tow truck 25, semi 32-40.' },
+    },
+  },
+
+  trailer: {
+    plural: 'trailers',
+    doc: 'A real hinged trailer. It swings behind the vehicle and can jackknife. Sold at dealers. coupling must match the vehicle (ball or fifth) and load must not exceed the vehicle tow rating.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Box trailer".'),
+      shape: { type: 'enum', values: ['open', 'box', 'flatbed', 'tanker'], required: true, doc: 'Which body is drawn.' },
+      coupling: { type: 'enum', values: ['ball', 'fifth'], default: 'ball' },
+      price: { type: 'int', min: 0, max: 1000000, required: true },
+      desc: { type: 'string', max: 80, optional: true },
+      length: { type: 'number', min: 1, max: 8, default: 2.2, doc: 'Tiles long.' },
+      width: { type: 'number', min: 0.5, max: 1.6, default: 0.9 },
+      height: { type: 'number', min: 2, max: 12, default: 5, doc: 'Pixel height of the roof/sides.' },
+      load: { type: 'number', min: 0, max: 3, default: 0.5, doc: 'How heavy. Slows acceleration/top speed and raises fuel use (0.3 light, 1 loaded semi trailer).' },
+      color: { type: 'color', default: '#d8d8dc' },
+      accent: { type: 'color', default: '#3a6ad0' },
     },
   },
 

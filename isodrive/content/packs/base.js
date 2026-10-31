@@ -131,14 +131,23 @@ export default {
   ],
 
   vehicles: [
-    { id: 'sedan', name: 'Sedan', shape: 'sedan', price: 0, desc: 'Cheap and frugal. 8 L/100km.', accel: 9, topSpeed: 14, grip: 5, fuelCap: 50, l100: 8 },
-    { id: 'wagon', name: 'Station Wagon', shape: 'wagon', price: 1200, desc: 'Sips fuel, carries lots. 7.5 L/100km.', length: 1.8, accel: 8.5, topSpeed: 13.5, grip: 5, offroad: 0.1, fuelCap: 60, l100: 7.5, turn: 2.3 },
-    { id: 'van', name: 'Van', shape: 'van', price: 2000, desc: 'Big tank, slow to turn. 11 L/100km.', length: 1.95, width: 0.95, height: 7, accel: 6.5, topSpeed: 11.5, grip: 4, offroad: 0.1, fuelCap: 70, l100: 11, turn: 2.0, brake: 18 },
-    { id: 'suv', name: 'SUV', shape: 'suv', price: 2500, desc: 'Rough-road capable, thirsty. 12.5 L/100km.', length: 1.75, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.6, offroad: 0.35, fuelCap: 70, l100: 12.5, turn: 2.2 },
-    { id: 'pickup', name: 'Pickup', shape: 'pickup', price: 3000, desc: 'Tough and roomy. 13 L/100km.', length: 1.95, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.4, offroad: 0.3, fuelCap: 80, l100: 13, turn: 2.1 },
-    { id: 'tow_truck', name: 'Tow Truck', shape: 'tow', price: 6000, desc: 'Heavy diesel, big tank. 25 L/100km.', length: 2.3, width: 1.0, height: 7, accel: 6, topSpeed: 11, grip: 3.8, offroad: 0.25, fuelCap: 120, l100: 25, turn: 1.85, brake: 16 },
-    { id: 'semi_2axle', name: 'Semi (2-axle)', shape: 'semi', price: 9000, desc: 'Road tractor. 32 L/100km.', length: 2.4, width: 1.0, height: 8, accel: 5, topSpeed: 10, grip: 3.5, offroad: 0.1, fuelCap: 200, l100: 32, turn: 1.6, brake: 14 },
-    { id: 'semi_3axle', name: 'Semi (3-axle)', shape: 'semi', price: 14000, desc: 'Heavy haul tractor. 38 L/100km.', length: 2.7, width: 1.05, height: 8, accel: 4.5, topSpeed: 9.5, grip: 3.3, offroad: 0.15, fuelCap: 280, l100: 38, turn: 1.45, brake: 13 },
+    { id: 'sedan', tow: 0.35, name: 'Sedan', shape: 'sedan', price: 0, desc: 'Cheap and frugal. 8 L/100km.', accel: 9, topSpeed: 14, grip: 5, fuelCap: 50, l100: 8 },
+    { id: 'wagon', tow: 0.5, name: 'Station Wagon', shape: 'wagon', price: 1200, desc: 'Sips fuel, carries lots. 7.5 L/100km.', length: 1.8, accel: 8.5, topSpeed: 13.5, grip: 5, offroad: 0.1, fuelCap: 60, l100: 7.5, turn: 2.3 },
+    { id: 'van', tow: 0.7, name: 'Van', shape: 'van', price: 2000, desc: 'Big tank, slow to turn. 11 L/100km.', length: 1.95, width: 0.95, height: 7, accel: 6.5, topSpeed: 11.5, grip: 4, offroad: 0.1, fuelCap: 70, l100: 11, turn: 2.0, brake: 18 },
+    { id: 'suv', tow: 0.8, name: 'SUV', shape: 'suv', price: 2500, desc: 'Rough-road capable, thirsty. 12.5 L/100km.', length: 1.75, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.6, offroad: 0.35, fuelCap: 70, l100: 12.5, turn: 2.2 },
+    { id: 'pickup', tow: 1.0, name: 'Pickup', shape: 'pickup', price: 3000, desc: 'Tough and roomy. 13 L/100km.', length: 1.95, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.4, offroad: 0.3, fuelCap: 80, l100: 13, turn: 2.1 },
+    { id: 'tow_truck', tow: 1.2, name: 'Tow Truck', shape: 'tow', price: 6000, desc: 'Heavy diesel, big tank. 25 L/100km.', length: 2.3, width: 1.0, height: 7, accel: 6, topSpeed: 11, grip: 3.8, offroad: 0.25, fuelCap: 120, l100: 25, turn: 1.85, brake: 16 },
+    { id: 'semi_2axle', name: 'Semi (2-axle)', shape: 'semi', price: 9000, desc: 'Road tractor, 26 L/100km bobtail, ~36 hauling.', length: 2.4, width: 1.0, height: 8, accel: 5, topSpeed: 10, grip: 3.5, offroad: 0.1, fuelCap: 200, l100: 26, coupling: 'fifth', tow: 1.5, turn: 1.6, brake: 14 },
+    { id: 'semi_3axle', name: 'Semi (3-axle)', shape: 'semi', price: 14000, desc: 'Heavy haul tractor, 30 bobtail, ~42 hauling.', length: 2.7, width: 1.05, height: 8, accel: 4.5, topSpeed: 9.5, grip: 3.3, offroad: 0.15, fuelCap: 280, l100: 30, coupling: 'fifth', tow: 1.5, turn: 1.45, brake: 13 },
+  ],
+
+  trailers: [
+    { id: 'utility_trailer', name: 'Utility Trailer', shape: 'open', price: 500, desc: 'Small open trailer. Light.', length: 1.5, width: 0.85, height: 4, load: 0.3, color: '#7a8088' },
+    { id: 'box_trailer', name: 'Box Trailer', shape: 'box', price: 1400, desc: 'Enclosed cargo box.', length: 2.1, width: 0.9, height: 7, load: 0.55 },
+    { id: 'cargo_trailer', name: 'Long Cargo Trailer', shape: 'box', price: 2800, desc: 'Big enclosed trailer for trucks.', length: 3.0, width: 0.95, height: 8, load: 0.95, accent: '#d0603a' },
+    { id: 'semi_box', name: 'Semi Box Trailer', shape: 'box', coupling: 'fifth', price: 5000, desc: '53-foot style dry van.', length: 5.0, width: 1.05, height: 9, load: 1.0 },
+    { id: 'semi_flatbed', name: 'Semi Flatbed', shape: 'flatbed', coupling: 'fifth', price: 4500, desc: 'Open deck for anything.', length: 5.0, width: 1.05, height: 5, load: 0.9, color: '#6c7480' },
+    { id: 'semi_tanker', name: 'Semi Tanker', shape: 'tanker', coupling: 'fifth', price: 7000, desc: 'Heavy liquid hauler.', length: 4.6, width: 1.0, height: 8, load: 1.2, color: '#c8ccd2', accent: '#d0a030' },
   ],
 
   wrecks: [

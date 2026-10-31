@@ -1,6 +1,7 @@
 // All DOM UI. Rule: anything that can come from another player or a content pack goes in via textContent only.
 import { CAR_COLORS } from '../game/profile.js';
 import { SLOTS } from '../content/schema.js';
+import { canTow } from '../game/trailer.js';
 
 const $ = (id) => document.getElementById(id);
 export function el(tag, props = {}, ...kids) {
@@ -101,7 +102,29 @@ export class UI {
 
   // ---------------------------------------------------------------- shop / garage
   openShop(b, game) { this.game = game; this.partsModal(b.def.name, game, b.biome.shopStock.map((id) => game.reg.get('part', id)).filter(Boolean), true); }
-  openDealer(game) { this.game = game; this.modal('Auto Dealer', this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true)); }
+  openDealer(game) { this.game = game; this.modal('Auto Dealer', el('div', {}, this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true), this.trailersBlock(game, game.reg.list('trailer').slice().sort((a, b) => a.price - b.price), true))); }
+  trailersBlock(game, list, dealer) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile, veh = game.reg.get('vehicle', P.vehicle);
+      if (!list.length) return;
+      body.append(el('h3', { text: dealer ? 'trailers' : 'trailer' }));
+      if (!dealer) body.append(el('div', { class: 'part' + (P.trailer ? '' : ' eq') }, el('div', { class: 'pinfo' }, el('b', { text: 'No trailer' })), el('button', { class: 'btn', disabled: !P.trailer, text: P.trailer ? 'Unhitch' : 'Hitched: none', onclick: () => { game.hitch(null); render(); } })));
+      for (const t of list) {
+        const have = P.trailers.has(t.id), cur = P.trailer === t.id, why = canTow(veh, t);
+        const chips = el('div', { class: 'chips' }, ...[`${t.coupling === 'fifth' ? 'fifth wheel' : 'ball hitch'}`, `load ${t.load}`, `${t.length} long`].map((x) => el('span', { class: 'chip', text: x })));
+        if (why) chips.append(el('span', { class: 'chip bad', text: why }));
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', text: 'Unhitch', onclick: () => { game.hitch(null); render(); } });
+        else if (have) btn = el('button', { class: 'btn', disabled: !!why, text: 'Hitch', onclick: () => { const e = game.hitch(t.id); this.toast(e || `Hitched ${t.name}`, 1400); render(); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${t.price}`, disabled: P.cash < t.price, onclick: () => { const e = game.buyTrailer(t.id); this.toast(e || `Bought ${t.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: t.name }), t.desc ? el('small', { text: t.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
   vehiclesBlock(game, list, dealer) {
     const body = el('div', { class: 'parts' });
     const render = () => {
@@ -114,7 +137,7 @@ export class UI {
         const chips = el('div', { class: 'chips' }, ...[`${v.topSpeed} top`, `${v.fuelCap}L tank`, `${v.l100} L/100km`, `range ~${Math.round(v.fuelCap / v.l100 * 100)} km`].map((t) => el('span', { class: 'chip', text: t })));
         let btn;
         if (cur) btn = el('button', { class: 'btn', disabled: true, text: 'Driving' });
-        else if (have) btn = el('button', { class: 'btn', text: 'Drive', onclick: () => { game.selectVehicle(v.id); render(); } });
+        else if (have) btn = el('button', { class: 'btn', text: 'Drive', onclick: () => { game.selectVehicle(v.id); dealer ? render() : this.openGarage(game); } });
         else btn = el('button', { class: 'btn buy', text: `Buy $${v.price}`, disabled: P.cash < v.price, onclick: () => { const e = game.buyVehicle(v.id); this.toast(e || `Bought ${v.name}`, 1400); render(); } });
         body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: v.name }), v.desc ? el('small', { text: v.desc }) : null, chips), btn));
       }
@@ -134,7 +157,8 @@ export class UI {
       const P = game.profile;
       body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
       if (!shop) body.append(this.colorRow(game));
-      if (vehicles && vehicles.length > 1) { const vb = this.vehiclesBlock(game, vehicles, false); body.append(vb); }
+      if (vehicles && vehicles.length > 1) { body.append(this.vehiclesBlock(game, vehicles, false)); }
+      if (vehicles && game.profile.trailers.size) body.append(this.trailersBlock(game, game.reg.list('trailer').filter((t) => game.profile.trailers.has(t.id)), false));
       for (const slot of SLOTS) {
         const list = parts.filter((p) => p.slot === slot);
         if (!list.length) continue;
