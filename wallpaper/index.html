@@ -65,6 +65,8 @@
     </style>
 
     <script src="../shared/js/header.js"></script>
+    <script src="../shared/js/omggif.js"></script>
+    <script src="../shared/js/gifenc.js"></script>
 
 </head>
 <body>
@@ -102,6 +104,7 @@
         </div>
 
         <h2>Images</h2>
+        <p id="gif-note" style="display:none; font-size:0.75rem; color:#00ffcc;"></p>
         <div class="control-group">
             <label>Focus Image (Transparent)</label>
             <input type="file" id="fg-upload" accept="image/*">
@@ -282,6 +285,12 @@
     <div id="preview-area">
         <div id="canvas-container">
             <canvas id="wallpaperCanvas"></canvas>
+        </div>
+        <div id="gif-controls" style="display:none; align-items:center; gap:8px; font-size:0.8rem; color:#aaa;">
+            <label for="gif-scale">GIF size</label>
+            <select id="gif-scale" style="padding:6px; background:#2a2a2a; color:#fff; border:1px solid #3a3a3a; border-radius:4px;">
+                <option value="1">100%</option><option value="0.75">75%</option><option value="0.5" selected>50%</option><option value="0.25">25%</option>
+            </select>
         </div>
         <button class="btn" id="download-btn">Export Wallpaper</button>
     </div>
@@ -586,36 +595,106 @@
             });
         }
 
+        // ---- Image loading. Static images become <img>; GIFs are decoded into frames and exposed as a <canvas>
+        // that always holds the frame for the current time, so all drawing code treats both the same way.
+        const gifClock = { t0: performance.now(), exporting: false };
+        async function loadGif(file) {
+            const rd = new omggif.GifReader(new Uint8Array(await file.arrayBuffer()));
+            const W = rd.width, H = rd.height, n = rd.numFrames();
+            const px = new Uint8ClampedArray(W * H * 4), frames = [], delays = [];
+            let prev = null, backup = null;
+            for (let i = 0; i < n; i++) {
+                const info = rd.frameInfo(i);
+                if (prev) {                                           // dispose the previous frame first
+                    if (prev.disposal === 3 && backup) px.set(backup);
+                    else if (prev.disposal === 2) for (let y = prev.y; y < prev.y + prev.height; y++) px.fill(0, (y * W + prev.x) * 4, (y * W + prev.x + prev.width) * 4);
+                }
+                backup = info.disposal === 3 ? px.slice() : null;
+                rd.decodeAndBlitFrameRGBA(i, px);
+                const c = document.createElement('canvas'); c.width = W; c.height = H;
+                c.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(px), W, H), 0, 0);
+                frames.push(c); delays.push(Math.max(20, (info.delay || 10) * 10));
+                prev = info;
+            }
+            const out = document.createElement('canvas'); out.width = W; out.height = H;
+            const total = delays.reduce((a, b) => a + b, 0);
+            out.gif = { frames, delays, total, cur: 0, name: file.name };
+            out.getContext('2d').drawImage(frames[0], 0, 0);
+            return out;
+        }
+        async function loadAnyImage(file) {
+            const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+            if (head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46) {            // "GIF"
+                const g = await loadGif(file);
+                if (g.gif.frames.length > 1) return g;
+            }
+            return await new Promise((res, rej) => {
+                const img = new Image();
+                img.onload = () => res(img); img.onerror = () => rej(new Error('Could not load image'));
+                img.src = URL.createObjectURL(file);
+            });
+        }
+        const gifList = () => Object.entries(imgs).filter(([, v]) => v && v.gif).map(([key, v]) => ({ key, c: v }));
+        const IMG_LABEL = { fg: 'Focus', bg: 'Background', frameBg: 'Frame background' };
+        // show the animated images and their lengths; when there are two or more, ask the user to make sure they match
+        function gifLengthsDiffer() { const l = gifList().map(g => g.c.gif.total); return l.length > 1 && Math.max(...l) - Math.min(...l) > 50; }
+        function gifLengthText() { return gifList().map(g => `${IMG_LABEL[g.key]}: ${(g.c.gif.total / 1000).toFixed(2)}s`).join(', '); }
+        function updateGifUi(justLoaded) {
+            const list = gifList(), note = document.getElementById('gif-note');
+            document.getElementById('gif-controls').style.display = list.length ? 'flex' : 'none';
+            document.getElementById('download-btn').textContent = list.length ? 'Export Animated GIF' : 'Export Wallpaper';
+            note.style.display = list.length ? 'block' : 'none';
+            if (!list.length) return;
+            note.textContent = `Animated: ${gifLengthText()}` + (list.length > 1 ? (gifLengthsDiffer() ? '  (lengths differ, the loop will not line up)' : '  (lengths match)') : '');
+            note.style.color = gifLengthsDiffer() ? '#ffb347' : '#00ffcc';
+            if (justLoaded && list.length > 1) alert(`You are using ${list.length} animated GIFs.\n\n${gifLengthText()}\n\nPlease make sure they are the same length so the exported loop lines up. ` + (gifLengthsDiffer() ? 'Right now they are DIFFERENT lengths: the shorter one will restart in the middle of the longer one.' : 'Right now they match.'));
+        }
+        // keep each animated image on the frame for time t
+        function setGifTime(c, t) {
+            const g = c.gif; let tt = t % g.total, i = 0;
+            while (i < g.frames.length - 1 && tt >= g.delays[i]) { tt -= g.delays[i]; i++; }
+            if (i === g.cur) return false;
+            g.cur = i; const x = c.getContext('2d'); x.clearRect(0, 0, c.width, c.height); x.drawImage(g.frames[i], 0, 0);
+            return true;
+        }
+        function gifTick(now) {
+            if (!gifClock.exporting) {
+                let changed = false;
+                for (const g of gifList()) changed = setGifTime(g.c, now - gifClock.t0) || changed;
+                if (changed) render();
+            }
+            requestAnimationFrame(gifTick);
+        }
+        requestAnimationFrame(gifTick);
+
         // Handle Image Loadings
         function registerImageUpload(inputId, imgKey) {
-            document.getElementById(inputId).onchange = (e) => {
+            document.getElementById(inputId).onchange = async (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
-                const img = new Image();
-                img.onload = () => { imgs[imgKey] = img; render(); };
-                img.src = URL.createObjectURL(file);
+                try { imgs[imgKey] = await loadAnyImage(file); } catch (err) { alert(err.message); return; }
+                gifClock.t0 = performance.now(); render(); updateGifUi(true);
             };
         }
         
         // Custom logic for Focus Image upload to trigger manual sliders setup
-        document.getElementById('fg-upload').onchange = (e) => {
+        document.getElementById('fg-upload').onchange = async (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            const img = new Image();
-            img.onload = () => {
-                imgs.fg = img;
-                // Set native image size as defaults for the manual sliders
-                fgWidthSlider.max = img.width * 2;
-                fgHeightSlider.max = img.height * 2;
-                fgWidthSlider.value = img.width;
-                fgHeightSlider.value = img.height;
-                state.fgManualWidth = img.width;
-                state.fgManualHeight = img.height;
-                updateManualWidthLabel(img.width);
-                updateManualHeightLabel(img.height);
-                render();
-            };
-            img.src = URL.createObjectURL(file);
+            let img;
+            try { img = await loadAnyImage(file); } catch (err) { alert(err.message); return; }
+            imgs.fg = img;
+            // Set native image size as defaults for the manual sliders
+            fgWidthSlider.max = img.width * 2;
+            fgHeightSlider.max = img.height * 2;
+            fgWidthSlider.value = img.width;
+            fgHeightSlider.value = img.height;
+            state.fgManualWidth = img.width;
+            state.fgManualHeight = img.height;
+            updateManualWidthLabel(img.width);
+            updateManualHeightLabel(img.height);
+            gifClock.t0 = performance.now();
+            render(); updateGifUi(true);
         };
 
         registerImageUpload('bg-upload', 'bg');
@@ -1009,8 +1088,10 @@
             initGoogleFontsAPI();
         };
 
-        // Export/Download implementation (temporarily suspends badge drawing)
-        document.getElementById('download-btn').onclick = () => {
+        // Export/Download implementation (temporarily suspends badge drawing). PNG for still images, GIF if any input is a GIF.
+        const dlBtn = document.getElementById('download-btn');
+        dlBtn.onclick = async () => {
+            if (gifList().length) return exportGif();
             state.isDownloading = true;
             render();
             
@@ -1022,6 +1103,40 @@
             state.isDownloading = false;
             render();
         };
+
+        async function exportGif() {
+            const list = gifList();
+            if (gifLengthsDiffer() && !confirm(`Your GIFs are different lengths (${gifLengthText()}).\n\nThe shorter one will restart partway through the longer one, so the loop will jump. Please make them the same length for a clean loop.\n\nExport anyway?`)) return;
+            const total = Math.max(...list.map(g => g.c.gif.total));
+            let step = Math.min(100, Math.min(...list.flatMap(g => g.c.gif.delays)));
+            let frames = Math.ceil(total / step);
+            if (frames > 200) { step = Math.ceil(total / 200 / 10) * 10; frames = Math.ceil(total / step); }
+            const k = parseFloat(document.getElementById('gif-scale').value) || 0.5;
+            const ow = Math.max(1, Math.round(state.width * k)), oh = Math.max(1, Math.round(state.height * k));
+            const oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+            const octx = oc.getContext('2d', { willReadFrequently: true });
+            const enc = gifenc.GIFEncoder();
+            gifClock.exporting = true; state.isDownloading = true; dlBtn.disabled = true;
+            try {
+                for (let f = 0; f < frames; f++) {
+                    for (const g of list) setGifTime(g.c, f * step);
+                    render();
+                    octx.clearRect(0, 0, ow, oh); octx.drawImage(canvas, 0, 0, ow, oh);
+                    const data = octx.getImageData(0, 0, ow, oh).data;
+                    const pal = gifenc.quantize(data, 256);
+                    enc.writeFrame(gifenc.applyPalette(data, pal), ow, oh, { palette: pal, delay: step });
+                    dlBtn.textContent = `Encoding ${f + 1}/${frames}...`;
+                    await new Promise(r => setTimeout(r));
+                }
+                enc.finish();
+                const link = document.createElement('a');
+                link.download = 'wallpaper.gif';
+                link.href = URL.createObjectURL(new Blob([enc.bytes()], { type: 'image/gif' }));
+                link.click();
+            } catch (err) { alert('GIF export failed: ' + err.message); }
+            gifClock.exporting = false; state.isDownloading = false; dlBtn.disabled = false; gifClock.t0 = performance.now();
+            updateGifUi(false); render();
+        }
 
         // Close dropdown when clicking outside font selector
         window.onclick = (e) => { if (!e.target.matches('#font-search')) results.style.display = 'none'; };
