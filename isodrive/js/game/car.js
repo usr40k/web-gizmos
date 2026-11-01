@@ -116,7 +116,10 @@ export function trailerPush(world, car, v, t) {
     for (const o of circles) { const dx = px - o.x, dy = py - o.y, d = Math.hypot(dx, dy), m = o.r + r; if (d < m && d > 1e-4) consider(dx / d, dy / d, m - d); }
     for (const b of rects) {
       const qx = clamp(px, b.x0, b.x1), qy = clamp(py, b.y0, b.y1); let dx = px - qx, dy = py - qy, d = Math.hypot(dx, dy);
-      if (d < r) { if (d < 1e-4) { dx = px - b.x; dy = py - b.y; d = Math.hypot(dx, dy) || 1; } consider(dx / d, dy / d, r - d + 1e-3); }
+      if (d < 1e-4) {                          // centre inside the building: leave through the nearest face
+        const ex = b.hx - Math.abs(px - b.x), ey = b.hy - Math.abs(py - b.y);
+        if (ex < ey) consider(Math.sign(px - b.x) || 1, 0, ex + r); else consider(0, Math.sign(py - b.y) || 1, ey + r);
+      } else if (d < r) consider(dx / d, dy / d, r - d + 1e-3);
     }
   }
   return best;
