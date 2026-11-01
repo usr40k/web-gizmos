@@ -20,6 +20,11 @@
     "extension": "js"
   },
   {
+    "name": "mp4-muxer.js",
+    "size": 73959,
+    "extension": "js"
+  },
+  {
     "name": "puter-v2.min.js",
     "size": 241590,
     "extension": "js"
@@ -61,7 +66,7 @@
   },
   {
     "name": "atlas.json",
-    "size": 952,
+    "size": 1102,
     "extension": "json"
   },
   {
