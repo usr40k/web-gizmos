@@ -2,6 +2,7 @@
 // localStorage (offline), a Matrix account-data event (persistent, per account) or anything else.
 import { SLOTS } from '../content/schema.js';
 import { canTow } from './trailer.js';
+import { validDecal, isBlank } from './decal.js';
 
 export const CAR_COLORS = ['#e8453c', '#f28c28', '#f5d742', '#4fc860', '#2fb7d4', '#4a6cf0', '#a85cf0', '#f060b0', '#e8e8e8', '#33333a'];
 
@@ -21,6 +22,11 @@ export class Profile {
     this.trailer = this.trailers.has(data.trailer) && !canTow(reg.get('vehicle', this.vehicle), reg.get('trailer', data.trailer)) ? data.trailer : null;
     const pk = data.parked;
     this.parked = pk && reg.get('trailer', pk.id) && [pk.x, pk.y, pk.th].every(Number.isFinite) ? { id: pk.id, x: pk.x, y: pk.y, th: pk.th } : null;     // trailer left standing in the world
+    this.decals = {};                                               // "v:<id>" / "t:<id>" -> decal string
+    for (const [k, d] of Object.entries(data.decals || {})) {
+      const kind = k[0] === 't' ? 'trailer' : 'vehicle';
+      if (/^[vt]:/.test(k) && reg.get(kind, k.slice(2)) && validDecal(d, kind) && !isBlank(d)) this.decals[k] = d;
+    }
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -39,7 +45,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {

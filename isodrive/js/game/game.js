@@ -84,7 +84,9 @@ export class Game {
 
     // network
     this.beaconT += dt * 1000;
-    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; this.transport.sendBeacon(packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle, this.profile.trailer)); }
+    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; const bc = packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle, this.profile.trailer);
+      if ((this.beaconN = (this.beaconN || 0) + 1) % 15 === 1) { const P = this.profile; bc.dv = P.decals['v:' + P.vehicle] || ''; bc.dt = P.trailer ? P.decals['t:' + P.trailer] || '' : ''; }   // decals are sent rarely, peers cache them
+      this.transport.sendBeacon(bc); }
     this.ghosts = this.peers.tick(dt, this.now);
 
     // persistence
@@ -178,6 +180,8 @@ export class Game {
   }
   buyTrailer(id) { const e = this.profile.buyTrailer(id); if (!e) { this.markDirty(); this.save(); } return e; }
   hitch(id) { const e = this.profile.hitch(id); if (!e) { if (this.profile.parked && this.profile.parked.id === id) this.profile.parked = null; this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } return e; }
+  setDecal(key, str) { if (str && !/^0+$/.test(str)) this.profile.decals[key] = str; else delete this.profile.decals[key]; this.markDirty(); }
+  decalsNow() { const P = this.profile; return { v: P.decals['v:' + P.vehicle], t: P.trailer ? P.decals['t:' + P.trailer] : undefined }; }
   setColor(c) { this.profile.color = c; this.markDirty(); }
 
   // ------------------------------------------------------------------ races

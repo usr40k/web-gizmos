@@ -2,6 +2,7 @@
 import { CAR_COLORS } from '../game/profile.js';
 import { SLOTS } from '../content/schema.js';
 import { canTow } from '../game/trailer.js';
+import { PAL, ROWS, colsFor, emptyDecal, validDecal } from '../game/decal.js';
 
 const $ = (id) => document.getElementById(id);
 export function el(tag, props = {}, ...kids) {
@@ -102,6 +103,57 @@ export class UI {
 
   // ---------------------------------------------------------------- shop / garage
   openShop(b, game) { this.game = game; this.partsModal(b.def.name, game, b.biome.shopStock.map((id) => game.reg.get('part', id)).filter(Boolean), true); }
+  // Pixel decal editor: 16x16 for the vehicle, 32x16 for a hitched trailer. Painted on the roof, nose to the right.
+  openDecals(game, which) {
+    const P = game.profile, kind = which === 'trailer' && P.trailer ? 'trailer' : 'vehicle';
+    const key = kind === 'trailer' ? 't:' + P.trailer : 'v:' + P.vehicle, cols = colsFor(kind);
+    const def = game.reg.get(kind, kind === 'trailer' ? P.trailer : P.vehicle);
+    let data = validDecal(P.decals[key], kind) ? P.decals[key] : emptyDecal(kind), brush = 3, down = false;
+    const cell = Math.max(8, Math.min(20, Math.floor((Math.min(innerWidth, 640) - 60) / cols)));
+    const cv = el('canvas', { class: 'decalcv', width: cols * cell, height: ROWS * cell });
+    cv.style.touchAction = 'none';
+    const g = cv.getContext('2d');
+    const bg = kind === 'trailer' ? def.color : P.color;
+    const paint = () => {
+      g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height);
+      for (let r = 0; r < ROWS; r++) for (let u = 0; u < cols; u++) { const i = parseInt(data[r * cols + u], 16); if (i) { g.fillStyle = PAL[i]; g.fillRect(u * cell, r * cell, cell, cell); } }
+      g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1;
+      for (let u = 1; u < cols; u++) { g.beginPath(); g.moveTo(u * cell + .5, 0); g.lineTo(u * cell + .5, cv.height); g.stroke(); }
+      for (let r = 1; r < ROWS; r++) { g.beginPath(); g.moveTo(0, r * cell + .5); g.lineTo(cv.width, r * cell + .5); g.stroke(); }
+    };
+    const at = (e) => { const b = cv.getBoundingClientRect(), u = Math.floor((e.clientX - b.left) / b.width * cols), r = Math.floor((e.clientY - b.top) / b.height * ROWS); return u >= 0 && u < cols && r >= 0 && r < ROWS ? r * cols + u : -1; };
+    let last = -1;
+    const setCell = (i) => { if (data[i] !== brush.toString(16)) data = data.slice(0, i) + brush.toString(16) + data.slice(i + 1); };
+    const put = (e) => {                                  // fills the cells between pointer events so fast strokes have no gaps
+      const i = at(e); if (i < 0) return;
+      if (last < 0) setCell(i);
+      else { const x0 = last % cols, y0 = Math.floor(last / cols), x1 = i % cols, y1 = Math.floor(i / cols), n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+        for (let k = 0; k <= n; k++) setCell(Math.round(y0 + (y1 - y0) * k / n) * cols + Math.round(x0 + (x1 - x0) * k / n)); }
+      last = i; paint();
+    };
+    const commit = () => { game.setDecal(key, data); };
+    cv.addEventListener('pointerdown', (e) => { down = true; last = -1; cv.setPointerCapture(e.pointerId); put(e); e.preventDefault(); });
+    cv.addEventListener('pointermove', (e) => { if (down) put(e); });
+    const up = () => { if (down) { down = false; last = -1; commit(); } };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    const pal = el('div', { class: 'colors' });
+    PAL.forEach((c, i) => {
+      const b = el('button', { class: 'swatch' + (i === brush ? ' sel' : ''), 'aria-label': c ? 'colour ' + c : 'eraser', title: c ? c : 'eraser', style: c ? `background:${c}` : 'background:repeating-conic-gradient(#555 0 25%,#999 0 50%) 0 0/10px 10px' });
+      b.addEventListener('click', () => { brush = i; [...pal.children].forEach((x, j) => x.classList.toggle('sel', j === i)); });
+      pal.append(b);
+    });
+    const body = el('div', { class: 'menu' },
+      el('div', { class: 'row' },
+        el('button', { class: 'btn' + (kind === 'vehicle' ? ' buy' : ''), text: 'Vehicle 16x16', onclick: () => this.openDecals(game, 'vehicle') }),
+        P.trailer ? el('button', { class: 'btn' + (kind === 'trailer' ? ' buy' : ''), text: 'Trailer 32x16', onclick: () => this.openDecals(game, 'trailer') }) : null),
+      el('small', { text: `${def.name}: painted on the roof, the nose is on the right.` }), cv, pal,
+      el('div', { class: 'row' },
+        el('button', { class: 'btn', text: 'Clear', onclick: () => { data = emptyDecal(kind); paint(); commit(); } }),
+        el('button', { class: 'btn', text: 'Flip', onclick: () => { let o = ''; for (let r = 0; r < ROWS; r++) o += [...data.slice(r * cols, r * cols + cols)].reverse().join(''); data = o; paint(); commit(); } }),
+        el('button', { class: 'btn', text: 'Done', onclick: () => this.closeModal() })));
+    this.modal('Decals', body, { wide: true });
+    paint();
+  }
   openDealer(game) { this.game = game; this.modal('Auto Dealer', el('div', {}, this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true), this.trailersBlock(game, game.reg.list('trailer').slice().sort((a, b) => a.price - b.price), true))); }
   trailersBlock(game, list, dealer) {
     const body = el('div', { class: 'parts' });
@@ -156,7 +208,7 @@ export class UI {
       body.replaceChildren();
       const P = game.profile;
       body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
-      if (!shop) body.append(this.colorRow(game));
+      if (!shop) body.append(this.colorRow(game), el('button', { class: 'btn', text: 'Decals (draw on your roof)', onclick: () => this.openDecals(game, 'vehicle') }));
       if (vehicles && vehicles.length > 1) { body.append(this.vehiclesBlock(game, vehicles, false)); }
       if (vehicles && game.profile.trailers.size) body.append(this.trailersBlock(game, game.reg.list('trailer').filter((t) => game.profile.trailers.has(t.id)), false));
       for (const slot of SLOTS) {

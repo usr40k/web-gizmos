@@ -2,6 +2,7 @@
 // so adding scenery never needs new drawing code. To add a NEW shape: add a function below and its name in
 // SHAPES (content/schema.js).
 import { trailerPose } from '../game/trailer.js';
+import { PAL, ROWS, colsFor, validDecal } from '../game/decal.js';
 import { fillPoly, rect, fillEllipse, strokeEllipse, shade, mix, drawTextCentered, diamond, textWidth } from './pixel.js';
 
 const LX = -0.447, LY = 0.895;     // light direction (from the left-front)
@@ -194,7 +195,20 @@ export function drawCoin(ctx, cam, x, y, t) {
 // ------------------------------------------------------------------ cars
 const GLASS = '#8fd0f0';
 // Vehicle body from boxes. `v` is a vehicle definition (shape, length, width, height); missing = sedan.
-export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer) {
+// Paint a decal flat on a roof: centre (cx,cy), heading ang, footprint len x wid tiles, height z. Columns run front to back... left to right = tail to nose.
+function drawDecalTop(ctx, cam, data, kind, cx, cy, ang, len, wid, z) {
+  if (!validDecal(data, kind)) return;
+  const cols = colsFor(kind), c = Math.cos(ang), s = Math.sin(ang);
+  for (let r = 0; r < ROWS; r++) for (let u = 0; u < cols; u++) {
+    const idx = parseInt(data[r * cols + u], 16); if (!idx) continue;
+    const a = ((u + 0.5) / cols - 0.5) * len, b = ((r + 0.5) / ROWS - 0.5) * wid;
+    const [sx, sy] = cam.px(cx + c * a - s * b, cy + s * a + c * b, z);
+    ctx.fillStyle = PAL[idx]; ctx.fillRect(sx, sy, 2, 1);
+  }
+}
+const DECAL_ZONE = { sedan: [0, 1, 1, 4.5], wagon: [0, 1, 1, 4.5], suv: [0, 1, 1, 5], pickup: [0, 1, 1, 4.2], van: [-0.08, 0.84, 1, 0], tow: [0.28, 0.4, 1, 0], semi: [0.24, 0.42, 1, 0] };
+
+export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer, decals) {
   const { x, y, h } = car;
   const L = (v && v.length) || 1.64, W = (v && v.width) || 0.88, shape = (v && v.shape) || 'sedan', H = (v && v.height) || 4.5;
   const c = Math.cos(h), s = Math.sin(h);
@@ -218,6 +232,11 @@ export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer) {
   if (trailer && trailer.def && v) { pose = trailerPose(car, v, trailer.def, trailer.th); addTrailer(parts, ctx, cam, pose, trailer.def, v); }
   parts.sort((a, b) => a.d - b.d);
   for (const q of parts) drawBox(ctx, cam, q.bx, q.by, q.hl, q.hw, q.ang, q.z, q.ht, q.col, q.top);
+  if (decals && v) {
+    const z = DECAL_ZONE[shape] || DECAL_ZONE.sedan, f = z[0], zz = z[3] || H;
+    drawDecalTop(ctx, cam, decals.v, 'vehicle', x + c * f * L, y + s * f * L, h, z[1] * L, z[2] * W, zz);
+    if (pose && decals.t) { const t = trailer.def; drawDecalTop(ctx, cam, decals.t, 'trailer', pose.x, pose.y, pose.th, t.length, t.width, TRAILER_TOP[t.shape](t)); }
+  }
   if (pose) {                                  // trailer tail lights
     const t = trailer.def, ct = Math.cos(pose.th), st = Math.sin(pose.th);
     if (ct + st < 0) for (const sg of [-1, 1]) {
@@ -235,6 +254,8 @@ export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer) {
   }
   ctx.globalAlpha = 1;
 }
+
+const TRAILER_TOP = { open: () => 2.9, box: (t) => t.height, flatbed: () => 3, tanker: (t) => t.height };
 
 // trailer boxes, appended to the same depth-sorted list as the tractor
 function addTrailer(parts, ctx, cam, pose, t, v) {

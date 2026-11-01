@@ -33,7 +33,7 @@ export class Peers {
     let p = this.map.get(id);
     if (!p) { p = { id, x: d.x, y: d.y, h: d.h, vx: 0, vy: 0, dx: d.x, dy: d.y, dh: d.h }; this.map.set(id, p); }
     p.x = d.x; p.y = d.y; p.h = d.h; p.vx = d.vx || 0; p.vy = d.vy || 0;
-    p.name = d.n || p.name || id.slice(0, 8); p.color = d.c || p.color || '#ccc'; p.veh = d.v || p.veh; p.trl = d.t || null; if (d.a !== undefined) { if (p.th === undefined || !p.trl) p.dth = d.a; p.th = d.a; } p.seen = now; p.rx = now;
+    p.name = d.n || p.name || id.slice(0, 8); p.color = d.c || p.color || '#ccc'; p.veh = d.v || p.veh; p.trl = d.t || null; if (typeof d.dv === 'string') p.dv = d.dv; if (typeof d.dt === 'string') p.dt = d.dt; if (d.a !== undefined) { if (p.th === undefined || !p.trl) p.dth = d.a; p.th = d.a; } p.seen = now; p.rx = now;
   }
   remove(id) { this.map.delete(id); }
   // advance display positions; returns array of {x,y,h,name,color,id}
@@ -48,7 +48,7 @@ export class Peers {
       p.dx += (tx - p.dx) * k; p.dy += (ty - p.dy) * k;
       if (p.trl && p.th !== undefined) { let dt2 = p.th - p.dth; dt2 = Math.atan2(Math.sin(dt2), Math.cos(dt2)); p.dth += dt2 * k; }
       let dh = p.h - p.dh; dh = Math.atan2(Math.sin(dh), Math.cos(dh)); p.dh += dh * k;
-      out.push({ id, x: p.dx, y: p.dy, h: p.dh, name: p.name, color: p.color, veh: p.veh, trl: p.trl, th: p.trl ? p.dth : undefined });
+      out.push({ id, x: p.dx, y: p.dy, h: p.dh, name: p.name, color: p.color, veh: p.veh, trl: p.trl, th: p.trl ? p.dth : undefined, dv: p.dv, dt: p.dt });
     }
     return out;
   }

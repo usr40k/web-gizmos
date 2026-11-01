@@ -81,3 +81,4 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
 .rec { margin: 2px 0; } pre.problemlist { white-space: pre-wrap; font-size: 11px; max-height: 60vh; overflow: auto; margin: 0; }
 .menu p { margin: 6px 0; }
 .storage p.good { color: var(--good); } .storage p.warn { color: #ffb340; }
+.decalcv { image-rendering: pixelated; max-width: 100%; border: 2px solid #000; outline: 1px solid #555; cursor: crosshair; display: block; margin: 6px 0; } .menu .row { display: flex; gap: 8px; flex-wrap: wrap; }

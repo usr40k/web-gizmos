@@ -113,8 +113,8 @@ export class Renderer {
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });
 
     // cars (ghosts first so the player is drawn over on ties)
-    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, this.world.reg.get('vehicle', o.veh), o.trl ? { def: this.world.reg.get('trailer', o.trl), th: o.th } : null) });
-    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor, 1, g.veh, g.trailer ? { def: g.trailer, th: g.car.th } : null) });
+    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, this.world.reg.get('vehicle', o.veh), o.trl ? { def: this.world.reg.get('trailer', o.trl), th: o.th } : null, { v: o.dv, t: o.dt }) });
+    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor, 1, g.veh, g.trailer ? { def: g.trailer, th: g.car.th } : null, g.decals) });
 
     ents.sort((a, b) => a.d - b.d);
     for (const e of ents) e.f();
