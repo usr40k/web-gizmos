@@ -24,6 +24,10 @@ export const STEPS = [
     touch: 'Shops sell car parts, and every biome stocks different ones. Stop at a shop and tap the prompt to browse.',
     guide: (g) => door(nearest(g, 'shop')),
     done: (g) => g.flags.shop },
+  { id: 'garage',
+    kbd: 'Press G to open your garage: swap parts, change paint, draw roof decals and switch vehicles. Dealers in towns and cities sell new vehicles and trailers.',
+    touch: 'Open MENU, then Garage: swap parts, change paint, draw roof decals and switch vehicles. Dealers in towns and cities sell new vehicles and trailers.',
+    done: (g) => g.flags.garage },
   { id: 'race',
     kbd: 'Races pay cash. Stop on a checkered race pad and press E to start a time trial.',
     touch: 'Races pay cash. Stop on a checkered race pad and tap the prompt to start a time trial.',
@@ -34,9 +38,9 @@ export const STEPS = [
     touch: 'Drive through the glowing checkpoints in order. The arrow points to the next one. Beat the par time for a bonus!',
     done: (g) => g.flags.raceEnd },
   { id: 'end',
-    kbd: 'That is everything. Garage (G) changes parts and paint, the menu has chat and controls, and the world goes on forever. Have fun!',
-    touch: 'That is everything. MENU has the garage, chat and controls, and the world goes on forever. Have fun!',
-    timeout: 9 },
+    kbd: 'That is everything. Salvage wrecks beside the highways (E) for cash and fuel, hitch trailers with H, and watch the tank: stations out in the wild are far apart. Have fun!',
+    touch: 'That is everything. Salvage wrecks beside the highways for cash and fuel, drop and hitch trailers by tapping the prompt, and watch the tank: stations out in the wild are far apart. Have fun!',
+    timeout: 12 },
 ];
 
 export class Tutorial {
@@ -52,6 +56,7 @@ export class Tutorial {
     // flags raised before a step began must not complete it (e.g. refuelled earlier); only 'end' timing differs
     if (STEPS[this.i].id === 'fuel') g.flags.refuel = false;
     if (STEPS[this.i].id === 'shop') g.flags.shop = false;
+    if (STEPS[this.i].id === 'garage') g.flags.garage = false;
     if (STEPS[this.i].id === 'race') { g.flags.raceStart = false; }
     if (STEPS[this.i].id === 'finish') { g.flags.raceEnd = false; }
     this.show();

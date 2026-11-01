@@ -82,3 +82,8 @@ html, body { overscroll-behavior: none; -webkit-touch-callout: none; }
 .menu p { margin: 6px 0; }
 .storage p.good { color: var(--good); } .storage p.warn { color: #ffb340; }
 .decalcv { image-rendering: pixelated; max-width: 100%; border: 2px solid #000; outline: 1px solid #555; cursor: crosshair; display: block; margin: 6px 0; } .menu .row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+#tut { position: fixed; left: 50%; top: 64px; transform: translateX(-50%); width: min(440px, 92vw); background: rgba(0,0,0,.82); border: 2px solid var(--accent); box-shadow: 0 0 14px rgba(0,255,255,.3); padding: 10px 14px; font-size: 14px; line-height: 1.35; display: none; z-index: 5; }
+#tut.show { display: block; } #tutbar { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; gap: 8px; } #tutbar small { opacity: .7; } #tutskip { padding: 4px 10px; font-size: 12px; }
+body.touch #tut { top: calc(52px + env(safe-area-inset-top)); font-size: 13px; padding: 8px 10px; } body.touch #tutskip { min-height: 36px; }
+@media (max-height: 420px) { body.touch #tut { width: min(380px, 52vw); left: 50%; } }

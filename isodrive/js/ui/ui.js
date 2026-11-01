@@ -42,6 +42,15 @@ export class UI {
     while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
     setTimeout(() => t.remove(), ms);
   }
+  // tutorial panel: p = { text, n, total, last } or null to hide
+  tutorial(p) {
+    const t = $('tut');
+    if (!p) { t.classList.remove('show'); return; }
+    $('tuttext').textContent = p.text; $('tutstep').textContent = `Tutorial ${p.n}/${p.total}`;
+    const sk = $('tutskip'); sk.textContent = p.last ? 'Done' : 'Skip tutorial';
+    sk.onclick = () => (this.game ? this.game.tutorial.skip() : null);
+    t.classList.add('show');
+  }
   pickup(text) { this.toast(text, 700); }
   banner(text, ms = 2200) {
     const b = $('banner'); b.textContent = text; b.classList.add('show');
@@ -198,7 +207,7 @@ export class UI {
     return body;
   }
   openGarage(game) {
-    this.game = game;
+    this.game = game; game.flags.garage = true;
     const owned = [...game.profile.owned].map((id) => game.reg.get('part', id)).filter(Boolean);
     this.partsModal('Garage', game, owned, false, game.reg.list('vehicle').filter((v) => game.profile.garage.has(v.id)));
   }
@@ -262,6 +271,7 @@ export class UI {
       el('p', { text: `Races ${g.profile.stats.races}  |  Coins ${g.profile.stats.coins}  |  ${g.profile.stats.km.toFixed(1)} km` }),
       el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
       el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
+      el('button', { class: 'btn', text: 'Replay tutorial', onclick: () => { this.closeModal(); g.tutorial.start(); } }),
       document.fullscreenEnabled ? el('button', { class: 'btn', text: 'Toggle fullscreen', onclick: () => { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); this.closeModal(); } }) : null,
       g.transport.kind === 'matrix' ? el('button', { class: 'btn', text: 'Log out', onclick: async () => { g.save(); await g.transport.logout(); const { forgetMatrixSessions } = await import('../net/session.js'); forgetMatrixSessions(g.transport.base, g.transport.userId); location.href = location.pathname; } }) : null,
       el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
