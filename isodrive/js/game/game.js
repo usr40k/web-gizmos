@@ -1,6 +1,6 @@
 // Game orchestration: ties world, car, economy, races and networking together. No DOM here except through `ui`.
-import { stepTrailer } from './trailer.js';
-import { newCar, stepCar, carStats, fuelBurn, FUEL_BASE_PRICE } from './car.js';
+import { stepTrailer, trailerPose, hitchOffset, gapOf, canTow } from './trailer.js';
+import { newCar, stepCar, carStats, trailerPush, fuelBurn, FUEL_BASE_PRICE } from './car.js';
 import { Peers, packBeacon } from '../net/transport.js';
 import { Tutorial } from './tutorial.js';
 
@@ -35,6 +35,8 @@ export class Game {
     if (this.stats.trailer) {
       if (car.th === undefined) car.th = car.h;
       const yaw = Math.atan2(Math.sin(car.h - h0), Math.cos(car.h - h0)) / dt;
+      const push = trailerPush(world, car, this.stats.veh, this.stats.trailer);
+      if (push) { car.x += push.nx * push.pen; car.y += push.ny * push.pen; const vn = car.vx * push.nx + car.vy * push.ny; if (vn < 0) { car.vx -= 1.4 * vn * push.nx; car.vy -= 1.4 * push.ny * vn; car.vx *= 0.85; car.vy *= 0.85; if (-vn > 5) this.ui.toast('Trailer hit!', 500); } }
       if (stepTrailer(car, this.stats.veh, this.stats.trailer, dt, yaw)) { const k = Math.max(0, 1 - 2.5 * dt); car.vx *= k; car.vy *= k; car.speed *= k; }
     } else car.th = undefined;
     this.fuel = Math.max(0, this.fuel - fuelBurn(this.stats, car.speed, out.thr) * dt);
@@ -66,6 +68,10 @@ export class Game {
       }
     }
     if (!this.near && Math.abs(car.speed) < 4.5) for (const w of this.wrecks) if (Math.hypot(w.x - car.x, w.y - car.y) < 4.5) { this.near = { wreck: w, def: { kind: 'wreck', name: w.def.name } }; break; }
+    if (!this.near && Math.abs(car.speed) < 3) {
+      if (this.profile.trailer) this.near = { def: { kind: 'trailer', name: this.stats.trailer.name }, act: 'drop' };
+      else if (this.canHitchParked()) this.near = { def: { kind: 'trailer', name: this.reg.get('trailer', this.profile.parked.id).name }, act: 'hitch' };
+    }
     this.ui.prompt(this.near ? this.promptFor(this.near) : null);
 
     // race
@@ -98,6 +104,7 @@ export class Game {
   // ------------------------------------------------------------------ interactions
   promptFor(b) {
     const d = b.def;
+    if (d.kind === 'trailer') return { text: b.act === 'drop' ? `[H] Drop ${d.name}` : `[H] Hitch ${d.name}`, action: () => this.toggleTrailer() };
     if (d.kind === 'wreck') return { text: `[E] Salvage ${d.name}`, action: () => this.salvage(b.wreck) };
     if (d.kind === 'gas_station') {
       const need = this.stats.fuelCap - this.fuel;
@@ -150,8 +157,27 @@ export class Game {
   equip(partId) { if (this.profile.equip(partId)) { this.recompute(); this.markDirty(); this.save(); } }
   buyVehicle(id) { const e = this.profile.buyVehicle(id); if (!e) { this.recompute(); this.markDirty(); this.save(); } return e; }
   selectVehicle(id) { if (this.profile.selectVehicle(id)) { this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } }
+  canHitchParked() {
+    const pk = this.profile.parked; if (!pk) return false;
+    const t = this.reg.get('trailer', pk.id), v = this.stats.veh;
+    if (!t || canTow(v, t)) return false;
+    const c = Math.cos(this.car.h), s = Math.sin(this.car.h), off = hitchOffset(v), g = gapOf({ coupling: t.coupling }), k = g + t.length / 2;
+    return Math.hypot(this.car.x + off * c - (pk.x + Math.cos(pk.th) * k), this.car.y + off * s - (pk.y + Math.sin(pk.th) * k)) < 3;
+  }
+  // H: drop the hitched trailer where it stands, or back up to a dropped one and hitch it
+  toggleTrailer() {
+    const P = this.profile;
+    if (P.trailer) {
+      const pose = trailerPose(this.car, this.stats.veh, this.stats.trailer, this.car.th);
+      P.parked = { id: P.trailer, x: pose.x, y: pose.y, th: pose.th }; P.trailer = null; this.car.th = undefined;
+      this.recompute(); this.markDirty(); this.save(); this.ui.toast('Trailer dropped', 1200);
+    } else if (this.canHitchParked()) {
+      const pk = P.parked; P.hitch(pk.id); P.parked = null; this.car.th = pk.th;
+      this.recompute(); this.markDirty(); this.save(); this.ui.toast('Trailer hitched', 1200);
+    } else this.ui.toast(P.parked ? 'Back the hitch up to the trailer' : 'No trailer', 1200);
+  }
   buyTrailer(id) { const e = this.profile.buyTrailer(id); if (!e) { this.markDirty(); this.save(); } return e; }
-  hitch(id) { const e = this.profile.hitch(id); if (!e) { this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } return e; }
+  hitch(id) { const e = this.profile.hitch(id); if (!e) { if (this.profile.parked && this.profile.parked.id === id) this.profile.parked = null; this.car.th = this.car.h; this.recompute(); this.markDirty(); this.save(); } return e; }
   setColor(c) { this.profile.color = c; this.markDirty(); }
 
   // ------------------------------------------------------------------ races

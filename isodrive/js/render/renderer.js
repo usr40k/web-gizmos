@@ -3,7 +3,7 @@
 import { CHUNK } from '../world/world.js';
 import { hash } from '../util/rng.js';
 import { diamond, rect, shade, fillPoly, drawText, drawTextCentered, textWidth } from './pixel.js';
-import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar, drawWreck } from './sprites.js';
+import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar, drawWreck, drawParkedTrailer } from './sprites.js';
 
 export class Camera {
   constructor() { this.x = 0; this.y = 0; this.W = 480; this.H = 270; this.sx = 0; this.sy = 0; }
@@ -107,6 +107,7 @@ export class Renderer {
       ents.push({ d: p.x + p.y, f: () => drawCheckpoint(ctx, cam, p.x, p.y, g.race.color, i === g.race.idx, t) });
     });
 
+    if (g.parked) ents.push({ d: g.parked.x + g.parked.y, f: () => drawParkedTrailer(ctx, cam, g.parked, world.reg.get('trailer', g.parked.id)) });
     for (const w of g.wrecks || []) ents.push({ d: w.x + w.y, f: () => drawWreck(ctx, cam, w, t) });
     // coins
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });

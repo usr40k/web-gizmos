@@ -19,6 +19,8 @@ export class Profile {
     this.vehicle = this.garage.has(data.vehicle) ? data.vehicle : (vs[0] && vs[0].id);
     this.trailers = new Set((Array.isArray(data.trailers) ? data.trailers : []).filter((id) => reg.get('trailer', id)));
     this.trailer = this.trailers.has(data.trailer) && !canTow(reg.get('vehicle', this.vehicle), reg.get('trailer', data.trailer)) ? data.trailer : null;
+    const pk = data.parked;
+    this.parked = pk && reg.get('trailer', pk.id) && [pk.x, pk.y, pk.th].every(Number.isFinite) ? { id: pk.id, x: pk.x, y: pk.y, th: pk.th } : null;     // trailer left standing in the world
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -37,7 +39,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], trailer: this.trailer, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {

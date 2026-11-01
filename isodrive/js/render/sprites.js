@@ -270,6 +270,18 @@ function addTrailer(parts, ctx, cam, pose, t, v) {
   }
 }
 
+// a trailer standing on its own (dropped by the player)
+export function drawParkedTrailer(ctx, cam, pk, t) {
+  const gap = t.coupling === 'fifth' ? 0 : 0.4, ct = Math.cos(pk.th), st = Math.sin(pk.th), k = gap + t.length / 2;
+  const pose = { x: pk.x, y: pk.y, th: pk.th, hx: pk.x + ct * k, hy: pk.y + st * k };
+  const parts = [];
+  addTrailer(parts, ctx, cam, pose, t, { coupling: t.coupling });
+  const [sx, sy] = cam.px(pose.hx, pose.hy, 0);           // landing leg
+  rect(ctx, sx - 1, sy - 3, 2, 3, '#3a3a44');
+  parts.sort((a, b) => a.d - b.d);
+  for (const q of parts) drawBox(ctx, cam, q.bx, q.by, q.hl, q.hw, q.ang, q.z, q.ht, q.col, q.top);
+}
+
 // wrecked vehicle: a tilted box with a dark hood and a puff of smoke
 export function drawWreck(ctx, cam, w, t) {
   const d = w.def;

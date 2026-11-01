@@ -1,6 +1,7 @@
 // Car stats (base + equipped parts) and arcade physics. Units: tiles and seconds.
 import { clamp } from '../util/rng.js';
 import { ROAD_HALF } from '../world/world.js';
+import { trailerPose } from './trailer.js';
 
 export const FUEL_BASE_PRICE = 2;       // cash per litre
 export const FUEL_TILE_KM = 0.1;        // for fuel only, one tile counts as 100 m (see the vehicle schema doc)
@@ -102,4 +103,21 @@ export function fuelBurn(stats, speed, thr) {
   const v = Math.abs(speed), cruise = stats.topSpeed * 0.6;
   const perTile = (stats.l100 / 100) * FUEL_TILE_KM * (0.75 + 0.5 * (v / cruise) ** 2) * (1 + 0.6 * Math.max(0, thr) * Math.max(0, 1 - v / stats.topSpeed));
   return (stats.l100 * 0.0001 + perTile * v) / (1 + stats.efficiency);
+}
+
+// Does the trailer body overlap a tree/rock/building? Returns { nx, ny, pen } (push direction for the vehicle) or null.
+export function trailerPush(world, car, v, t) {
+  const pose = trailerPose(car, v, t, car.th), r = t.width / 2 + 0.05;
+  const { circles, rects } = world.solidsNear(pose.x, pose.y, t.length / 2 + 3);
+  let best = null;
+  const consider = (nx, ny, pen) => { if (!best || pen > best.pen) best = { nx, ny, pen }; };
+  for (const f of [-0.45, -0.22, 0, 0.22, 0.45]) {
+    const px = pose.x + Math.cos(pose.th) * f * t.length, py = pose.y + Math.sin(pose.th) * f * t.length;
+    for (const o of circles) { const dx = px - o.x, dy = py - o.y, d = Math.hypot(dx, dy), m = o.r + r; if (d < m && d > 1e-4) consider(dx / d, dy / d, m - d); }
+    for (const b of rects) {
+      const qx = clamp(px, b.x0, b.x1), qy = clamp(py, b.y0, b.y1); let dx = px - qx, dy = py - qy, d = Math.hypot(dx, dy);
+      if (d < r) { if (d < 1e-4) { dx = px - b.x; dy = py - b.y; d = Math.hypot(dx, dy) || 1; } consider(dx / d, dy / d, r - d + 1e-3); }
+    }
+  }
+  return best;
 }

@@ -232,7 +232,7 @@ export class UI {
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
       el('p', { text: document.body.classList.contains('touch') ? 'Touch: hold the arrow pads to steer, GAS to go, BRK for a handbrake drift, REV to brake and reverse. Tap the prompt at the bottom to refuel, shop or race.' : 'W/A/S/D or arrows: drive   Space: handbrake' }),
-      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   T: call a tow when out of fuel' }),
+      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
       el('p', { text: 'Enter: chat   Esc: menu' }),
       el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));
   }

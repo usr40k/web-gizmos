@@ -70,6 +70,7 @@ async function main() {
     menu: () => (ui.modalOpen ? ui.closeModal() : ui.openMenu()),
     chat: () => { if (!ui.modalOpen) ui.openChat(); },
     tow: () => game && !ui.modalOpen && game.tow(),
+    hitch: () => game && !ui.modalOpen && game.toggleTrailer(),
     garage: () => game && (ui.modalOpen ? ui.closeModal() : ui.openGarage(game)),
   });
   ui.onModal = (open) => { input.enabled = !open; };
@@ -87,7 +88,7 @@ async function main() {
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     game.update(dt, input.read());
-    renderer.draw({ car: game.car, carColor: profile.color, veh: game.stats.veh, trailer: game.stats.trailer, ghosts: game.ghosts || [], wrecks: game.wrecks, race: game.race, near: game.near, coins: game.coins, camX: game.car.x, camY: game.car.y, t: game.t });
+    renderer.draw({ car: game.car, carColor: profile.color, veh: game.stats.veh, trailer: game.stats.trailer, ghosts: game.ghosts || [], wrecks: game.wrecks, parked: profile.parked, race: game.race, near: game.near, coins: game.coins, camX: game.car.x, camY: game.car.y, t: game.t });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

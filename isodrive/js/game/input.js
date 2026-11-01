@@ -20,6 +20,7 @@ export class Input {
       else if (k === 'Escape') this.actions.menu();
       else if (k === 'g') this.actions.garage();
       else if (k === 't') this.actions.tow();
+      else if (k === 'h') this.actions.hitch && this.actions.hitch();
     }
     if (!this.enabled && down) return;
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(k)) e.preventDefault();
