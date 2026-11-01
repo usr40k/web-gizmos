@@ -622,8 +622,33 @@
             out.getContext('2d').drawImage(frames[0], 0, 0);
             return out;
         }
+        // animated WebP: decoded with the browser's ImageDecoder (Chrome, Edge, Safari 17+; not every Firefox)
+        async function loadAnimatedWebp(file) {
+            const dec = new ImageDecoder({ data: await file.arrayBuffer(), type: 'image/webp' });
+            await dec.tracks.ready;
+            const n = dec.tracks.selectedTrack.frameCount, frames = [], delays = [];
+            let W = 0, H = 0;
+            for (let i = 0; i < n; i++) {
+                const { image } = await dec.decode({ frameIndex: i });
+                W = image.displayWidth; H = image.displayHeight;
+                const c = document.createElement('canvas'); c.width = W; c.height = H;
+                c.getContext('2d').drawImage(image, 0, 0);
+                frames.push(c); delays.push(Math.max(20, Math.round((image.duration || 100000) / 1000)));
+                image.close();
+            }
+            dec.close();
+            const out = document.createElement('canvas'); out.width = W; out.height = H;
+            out.gif = { frames, delays, total: delays.reduce((a, b) => a + b, 0), cur: 0, name: file.name };
+            out.getContext('2d').drawImage(frames[0], 0, 0);
+            return out;
+        }
         async function loadAnyImage(file) {
-            const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+            const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+            const tag = (o, t) => [...t].every((ch, i) => head[o + i] === ch.charCodeAt(0));
+            if (tag(0, 'RIFF') && tag(8, 'WEBP') && tag(12, 'VP8X') && (head[20] & 2)) {      // animated WebP
+                if (typeof ImageDecoder === 'undefined') alert('This browser cannot read animated WebP, so only the first frame is used. Try Chrome, Edge or Safari, or convert it to a GIF.');
+                else { const w = await loadAnimatedWebp(file); if (w.gif.frames.length > 1) return w; }
+            }
             if (head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46) {            // "GIF"
                 const g = await loadGif(file);
                 if (g.gif.frames.length > 1) return g;
@@ -647,7 +672,7 @@
             if (!list.length) return;
             note.textContent = `Animated: ${gifLengthText()}` + (list.length > 1 ? (gifLengthsDiffer() ? '  (lengths differ, the loop will not line up)' : '  (lengths match)') : '');
             note.style.color = gifLengthsDiffer() ? '#ffb347' : '#00ffcc';
-            if (justLoaded && list.length > 1) alert(`You are using ${list.length} animated GIFs.\n\n${gifLengthText()}\n\nPlease make sure they are the same length so the exported loop lines up. ` + (gifLengthsDiffer() ? 'Right now they are DIFFERENT lengths: the shorter one will restart in the middle of the longer one.' : 'Right now they match.'));
+            if (justLoaded && list.length > 1) alert(`You are using ${list.length} animated images (GIF/WebP).\n\n${gifLengthText()}\n\nPlease make sure they are the same length so the exported loop lines up. ` + (gifLengthsDiffer() ? 'Right now they are DIFFERENT lengths: the shorter one will restart in the middle of the longer one.' : 'Right now they match.'));
         }
         // keep each animated image on the frame for time t
         function setGifTime(c, t) {
@@ -1106,7 +1131,7 @@
 
         async function exportGif() {
             const list = gifList();
-            if (gifLengthsDiffer() && !confirm(`Your GIFs are different lengths (${gifLengthText()}).\n\nThe shorter one will restart partway through the longer one, so the loop will jump. Please make them the same length for a clean loop.\n\nExport anyway?`)) return;
+            if (gifLengthsDiffer() && !confirm(`Your animated images are different lengths (${gifLengthText()}).\n\nThe shorter one will restart partway through the longer one, so the loop will jump. Please make them the same length for a clean loop.\n\nExport anyway?`)) return;
             const total = Math.max(...list.map(g => g.c.gif.total));
             let step = Math.min(100, Math.min(...list.flatMap(g => g.c.gif.delays)));
             let frames = Math.ceil(total / step);
