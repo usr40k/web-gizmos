@@ -67,6 +67,7 @@
     <script src="../shared/js/header.js"></script>
     <script src="../shared/js/omggif.js"></script>
     <script src="../shared/js/gifenc.js"></script>
+    <script src="../shared/js/mp4-muxer.js"></script>
 
 </head>
 <body>
@@ -287,9 +288,17 @@
             <canvas id="wallpaperCanvas"></canvas>
         </div>
         <div id="gif-controls" style="display:none; align-items:center; gap:8px; font-size:0.8rem; color:#aaa;">
-            <label for="gif-scale">GIF size</label>
+            <label for="anim-format">Format</label>
+            <select id="anim-format" style="padding:6px; background:#2a2a2a; color:#fff; border:1px solid #3a3a3a; border-radius:4px;">
+                <option value="gif" selected>GIF</option><option value="mp4">MP4 video</option>
+            </select>
+            <label for="gif-scale">Size</label>
             <select id="gif-scale" style="padding:6px; background:#2a2a2a; color:#fff; border:1px solid #3a3a3a; border-radius:4px;">
                 <option value="1">100%</option><option value="0.75">75%</option><option value="0.5" selected>50%</option><option value="0.25">25%</option>
+            </select>
+            <label for="mp4-loops" id="mp4-loops-label" style="display:none;">Loops</label>
+            <select id="mp4-loops" style="display:none; padding:6px; background:#2a2a2a; color:#fff; border:1px solid #3a3a3a; border-radius:4px;">
+                <option value="1" selected>1x</option><option value="2">2x</option><option value="3">3x</option><option value="5">5x</option>
             </select>
         </div>
         <button class="btn" id="download-btn">Export Wallpaper</button>
@@ -667,7 +676,9 @@
         function updateGifUi(justLoaded) {
             const list = gifList(), note = document.getElementById('gif-note');
             document.getElementById('gif-controls').style.display = list.length ? 'flex' : 'none';
-            document.getElementById('download-btn').textContent = list.length ? 'Export Animated GIF' : 'Export Wallpaper';
+            const fmt = document.getElementById('anim-format').value;
+            document.getElementById('download-btn').textContent = list.length ? 'Export Animated ' + (fmt === 'mp4' ? 'MP4' : 'GIF') : 'Export Wallpaper';
+            document.getElementById('mp4-loops').style.display = document.getElementById('mp4-loops-label').style.display = fmt === 'mp4' ? '' : 'none';
             note.style.display = list.length ? 'block' : 'none';
             if (!list.length) return;
             note.textContent = `Animated: ${gifLengthText()}` + (list.length > 1 ? (gifLengthsDiffer() ? '  (lengths differ, the loop will not line up)' : '  (lengths match)') : '');
@@ -1116,7 +1127,7 @@
         // Export/Download implementation (temporarily suspends badge drawing). PNG for still images, GIF if any input is a GIF.
         const dlBtn = document.getElementById('download-btn');
         dlBtn.onclick = async () => {
-            if (gifList().length) return exportGif();
+            if (gifList().length) return document.getElementById('anim-format').value === 'mp4' ? exportMp4() : exportGif();
             state.isDownloading = true;
             render();
             
@@ -1128,6 +1139,52 @@
             state.isDownloading = false;
             render();
         };
+
+        document.getElementById('anim-format').onchange = () => updateGifUi(false);
+
+        // MP4 via WebCodecs (H.264, falling back to VP9 inside the MP4 if the browser has no H.264 encoder), 30 fps, no audio
+        async function exportMp4() {
+            const list = gifList();
+            if (typeof VideoEncoder === 'undefined') { alert('This browser cannot encode video (no WebCodecs). Use Chrome, Edge or Safari, or export a GIF.'); return; }
+            if (gifLengthsDiffer() && !confirm(`Your animated images are different lengths (${gifLengthText()}).\n\nThe shorter one will restart partway through the longer one, so the loop will jump. Please make them the same length for a clean loop.\n\nExport anyway?`)) return;
+            const FPS = 30, loops = parseInt(document.getElementById('mp4-loops').value) || 1;
+            const total = Math.max(...list.map(g => g.c.gif.total)), frames = Math.ceil(total / 1000 * FPS) * loops;
+            const k = parseFloat(document.getElementById('gif-scale').value) || 1;
+            const ow = Math.max(2, Math.round(state.width * k) & ~1), oh = Math.max(2, Math.round(state.height * k) & ~1);   // even sizes for H.264
+            const tries = [['avc1.640034', 'avc'], ['avc1.4d0034', 'avc'], ['vp09.00.51.08', 'vp9']];
+            let pick = null;
+            for (const [codec, mux] of tries) {
+                try { const sup = await VideoEncoder.isConfigSupported({ codec, width: ow, height: oh, bitrate: 8e6, framerate: FPS }); if (sup.supported) { pick = { codec, mux }; break; } } catch (e) { /* try next */ }
+            }
+            if (!pick) { alert('No video encoder is available for this size. Try a smaller size, or export a GIF.'); return; }
+            const oc = document.createElement('canvas'); oc.width = ow; oc.height = oh;
+            const octx = oc.getContext('2d');
+            const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: pick.mux, width: ow, height: oh }, fastStart: 'in-memory' });
+            let encErr = null;
+            const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => { encErr = e; } });
+            enc.configure({ codec: pick.codec, width: ow, height: oh, bitrate: Math.min(20e6, Math.max(2e6, ow * oh * 6)), framerate: FPS });
+            gifClock.exporting = true; state.isDownloading = true; dlBtn.disabled = true;
+            try {
+                for (let f = 0; f < frames; f++) {
+                    if (encErr) throw encErr;
+                    for (const g of list) setGifTime(g.c, (f / FPS) * 1000);
+                    render();
+                    octx.drawImage(canvas, 0, 0, ow, oh);
+                    const vf = new VideoFrame(oc, { timestamp: Math.round(f * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+                    enc.encode(vf, { keyFrame: f % FPS === 0 }); vf.close();
+                    while (enc.encodeQueueSize > 8) await new Promise(r => setTimeout(r, 5));
+                    if (f % 3 === 0) { dlBtn.textContent = `Encoding ${f + 1}/${frames}...`; await new Promise(r => setTimeout(r)); }
+                }
+                await enc.flush(); if (encErr) throw encErr;
+                muxer.finalize();
+                const link = document.createElement('a');
+                link.download = 'wallpaper.mp4';
+                link.href = URL.createObjectURL(new Blob([muxer.target.buffer], { type: 'video/mp4' }));
+                link.click();
+            } catch (err) { alert('MP4 export failed: ' + err.message); }
+            gifClock.exporting = false; state.isDownloading = false; dlBtn.disabled = false; gifClock.t0 = performance.now();
+            updateGifUi(false); render();
+        }
 
         async function exportGif() {
             const list = gifList();
