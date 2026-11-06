@@ -69,6 +69,7 @@ export const SCHEMA = {
       },
       shopStock: { type: 'list', of: { type: 'ref', ref: 'part' }, doc: 'Part ids sold by shops in this biome. Different biomes = different stock.' },
       fuelPrice: { type: 'number', min: 0.2, max: 6, default: 1, doc: 'Multiplier on the base fuel price.' },
+      creatures: { type: 'number', min: 0, max: 1, default: 0.04, doc: 'How often silly creatures (aliens, UFOs, cows) stand near highways (0 = never).' },
       wrecks: { type: 'number', min: 0, max: 1, default: 0.15, doc: 'How often salvageable wrecks sit beside highways (0 = never).' },
       coins: { type: 'number', min: 0, max: 1, default: 0.25, doc: 'How often cash trails appear on roads (0 = never).' },
     },
@@ -191,6 +192,23 @@ export const SCHEMA = {
       load: { type: 'number', min: 0, max: 3, default: 0.5, doc: 'How heavy. Slows acceleration/top speed and raises fuel use (0.3 light, 1 loaded semi trailer).' },
       color: { type: 'color', default: '#d8d8dc' },
       accent: { type: 'color', default: '#3a6ad0' },
+    },
+  },
+
+  creature: {
+    plural: 'creatures',
+    doc: 'A silly roadside creature. Stop next to it and press E to talk: it says one of its lines and may hand over cash or fuel. It wanders back after a while.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Zorp".'),
+      shape: { type: 'enum', values: ['alien', 'ufo', 'cow'], required: true, doc: 'Which body is drawn.' },
+      color: { type: 'color', default: '#6adf6a' },
+      accent: { type: 'color', default: '#ff4af0' },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only appear in these biomes. Empty = anywhere.' },
+      lines: { type: 'list', of: { type: 'string', max: 70 }, doc: 'What it says (up to 6 lines, picked at random).' },
+      cash: { type: 'int', min: 0, max: 1000, default: 25, doc: 'Maximum cash given (30-100%).' },
+      fuel: { type: 'int', min: 0, max: 100, default: 0, doc: 'Maximum litres given (30-100%).' },
     },
   },
 

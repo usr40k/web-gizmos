@@ -15,7 +15,7 @@ export class Game {
     const sp = profile.pos && Number.isFinite(profile.pos.x) ? profile.pos : world.spawn();
     this.car = newCar({ x: sp.x, y: sp.y, h: sp.h || 0 });
     this.fuel = profile.fuel === null ? this.stats.fuelCap : Math.min(profile.fuel, this.stats.fuelCap);
-    this.race = null; this.near = null; this.coins = []; this.wrecks = []; this.flags = {};
+    this.race = null; this.near = null; this.coins = []; this.wrecks = []; this.creatures = []; this.flags = {};
     this.tutorial = new Tutorial(this, ui);
     this.lastBiome = null; this.beaconT = 0; this.saveT = 0; this.dirty = false; this.strandedT = 0; this.speedMax = 0;
     transport.onBeacon = (id, d) => this.peers.update(id, d, Date.now());
@@ -49,6 +49,7 @@ export class Game {
     if (biome !== this.lastBiome) { if (this.lastBiome) this.ui.banner('Entering ' + biome.name); this.lastBiome = biome; }
 
     this.wrecks = world.wrecksNear(car.x - 30, car.y - 30, car.x + 30, car.y + 30, this.now);
+    this.creatures = world.creaturesNear(car.x - 30, car.y - 30, car.x + 30, car.y + 30, this.now);
     // coins
     this.coins = world.coinsNear(car.x - 22, car.y - 22, car.x + 22, car.y + 22, this.now);
     for (const c of this.coins) {
@@ -68,6 +69,7 @@ export class Game {
       }
     }
     if (!this.near && Math.abs(car.speed) < 4.5) for (const w of this.wrecks) if (Math.hypot(w.x - car.x, w.y - car.y) < 4.5) { this.near = { wreck: w, def: { kind: 'wreck', name: w.def.name } }; break; }
+    if (!this.near && Math.abs(car.speed) < 4.5) for (const c of this.creatures) if (Math.hypot(c.x - car.x, c.y - car.y) < 4.5) { this.near = { creature: c, def: { kind: 'creature', name: c.def.name } }; break; }
     if (!this.near && Math.abs(car.speed) < 3) {
       if (this.profile.trailer) this.near = { def: { kind: 'trailer', name: this.stats.trailer.name }, act: 'drop' };
       else if (this.canHitchParked()) this.near = { def: { kind: 'trailer', name: this.reg.get('trailer', this.profile.parked.id).name }, act: 'hitch' };
@@ -107,6 +109,7 @@ export class Game {
   promptFor(b) {
     const d = b.def;
     if (d.kind === 'trailer') return { text: b.act === 'drop' ? `[H] Drop ${d.name}` : `[H] Hitch ${d.name}`, action: () => this.toggleTrailer() };
+    if (d.kind === 'creature') return { text: `[E] Talk to ${d.name}`, action: () => this.talk(b.creature) };
     if (d.kind === 'wreck') return { text: `[E] Salvage ${d.name}`, action: () => this.salvage(b.wreck) };
     if (d.kind === 'gas_station') {
       const need = this.stats.fuelCap - this.fuel;
@@ -124,6 +127,16 @@ export class Game {
     return null;
   }
   interact() { if (this.near) { const p = this.promptFor(this.near); if (p && p.action) p.action(); } else if (this.fuel <= 0 && this.strandedT > 2) this.tow(); }
+
+  talk(c) {
+    const d = c.def, k = 0.3 + 0.7 * c.loot, cash = Math.round(d.cash * k), litres = Math.round(d.fuel * k * 10) / 10;
+    this.world.salvage(c.id, this.now);
+    this.profile.cash += cash; this.fuel = Math.min(this.stats.fuelCap, this.fuel + litres);
+    this.profile.stats.chats = (this.profile.stats.chats || 0) + 1; this.markDirty(); this.near = null;
+    const line = d.lines.length ? d.lines[c.say % d.lines.length] : '...';
+    this.ui.toast(`${d.name}: "${line}"`, 3500);
+    if (cash || litres) this.ui.toast(`${cash ? '+$' + cash : ''}${cash && litres ? ', ' : ''}${litres ? '+' + litres.toFixed(0) + 'L fuel' : ''}`, 2500);
+  }
 
   salvage(w) {
     const k = 0.3 + 0.7 * w.loot, cash = Math.round(w.def.cash * k), litres = Math.round(w.def.fuel * k * 10) / 10;

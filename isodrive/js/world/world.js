@@ -42,6 +42,7 @@ export class World {
     this.chunks = new Map();
     this.bldCache = new Map();
     this.wreckDefs = reg.list('wreck'); this.wreckW = this.wreckDefs.reduce((a, w) => a + w.weight, 0);
+    this.creatureDefs = reg.list('creature');
     this.setts = reg.list('settlement');
     this.settCache = new Map();
     this.collected = new Map();   // coin id -> time (ms) when it respawns
@@ -388,6 +389,35 @@ export class World {
     return out;
   }
   salvage(id, now) { this.collected.set(id, now + 600000); }
+
+  // ---------------------------------------------------------------- creatures (aliens, UFOs, cows: talk for a reward)
+  creaturesNear(x0, y0, x1, y1, now) {
+    const out = [];
+    if (!this.creatureDefs.length) return out;
+    for (const axis of ['H', 'V']) {
+      const lo = axis === 'H' ? y0 : x0, hi = axis === 'H' ? y1 : x1, a0 = axis === 'H' ? x0 : y0, a1 = axis === 'H' ? x1 : y1;
+      for (let idx = Math.floor((lo - 16) / S); idx <= Math.ceil((hi + 16) / S); idx++) {
+        for (let run = Math.floor((a0 - 16) / 500); run <= Math.ceil((a1 + 16) / 500); run++) {
+          const salt = idx * 53 + (axis === 'H' ? 7 : 8);
+          const along = run * 500 + 20 + rand01(this.seed, salt, run, 91) * 460;
+          const side = hash(this.seed, salt, run, 92) & 1 ? 1 : -1, rc = this.roadCenter(axis, idx, along) + side * (ROAD_HALF + 4 + rand01(this.seed, salt, run, 93) * 8);
+          const x = axis === 'H' ? along : rc, y = axis === 'H' ? rc : along;
+          if (x < x0 || x > x1 || y < y0 || y > y1) continue;
+          if (this.settlementAt(x, y, 20) || this.roadAt(x, y).d < ROAD_HALF + 2) continue;
+          const biome = this.biomeAt(x, y);
+          if (rand01(this.seed, salt, run, 94) >= biome.creatures) continue;
+          const ok = this.creatureDefs.filter((c) => !c.inside.length || c.inside.includes(biome.id));
+          if (!ok.length) continue;
+          const id = `C${axis}${idx}:${run}`;
+          if ((this.collected.get(id) || 0) > now) continue;
+          let r = rand01(this.seed, salt, run, 95) * ok.reduce((a, c) => a + c.weight, 0), def = ok[0];
+          for (const c of ok) { r -= c.weight; if (r <= 0) { def = c; break; } }
+          out.push({ id, x, y, def, loot: rand01(this.seed, salt, run, 96), say: hash(this.seed, salt, run, 97), phase: rand01(this.seed, salt, run, 98) * 6.28 });
+        }
+      }
+    }
+    return out;
+  }
 
   // ---------------------------------------------------------------- races
   raceCheckpoints(bld, race) {

@@ -319,3 +319,30 @@ export function drawWreck(ctx, cam, w, t) {
   const [sx, sy] = cam.px(w.x, w.y, d.height + 2);
   for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i / 3) % 1; rect(ctx, Math.round(sx + Math.sin(t + i * 2) * 2), Math.round(sy - k * 14), 2, 2, k < 0.6 ? '#555' : '#888'); }
 }
+
+// silly roadside creatures: alien, ufo, cow
+export function drawCreature(ctx, cam, c, t) {
+  const d = c.def, bob = Math.sin(t * 3 + c.phase) * 1.2;
+  const [sx, sy] = cam.px(c.x, c.y, 0);
+  if (d.shape === 'ufo') {
+    const y = sy - 20 + Math.round(bob * 2);
+    ground(ctx, sx, sy, 10, 3.5, 0.3);
+    ctx.globalAlpha = 0.14; fillPoly(ctx, [[sx - 4, y + 2], [sx + 4, y + 2], [sx + 10, sy], [sx - 10, sy]], d.accent); ctx.globalAlpha = 1;
+    fillEllipse(ctx, sx, y, 9, 3, shade(d.color, 0.8)); fillEllipse(ctx, sx, y - 3, 4.5, 3.5, d.accent); fillEllipse(ctx, sx, y - 1, 9, 2, d.color);
+    for (let i = -1; i <= 1; i++) rect(ctx, sx + i * 5 - 0, y, 1, 1, Math.floor(t * 4 + i) % 2 ? '#fff7a8' : d.accent);
+  } else if (d.shape === 'cow') {
+    ground(ctx, sx, sy, 8, 3, 0.25);
+    drawBox(ctx, cam, c.x, c.y, 0.6, 0.32, 0.4, 1.5, 4, d.color);
+    drawBox(ctx, cam, c.x + 0.62, c.y + 0.2, 0.2, 0.2, 0.4, 3.5, 3, d.color);
+    rect(ctx, sx - 2, sy - 6, 2, 2, d.accent); rect(ctx, sx + 2, sy - 4, 2, 2, d.accent);
+    for (const o of [-0.35, 0.35]) drawBox(ctx, cam, c.x + o, c.y + o * 0.2, 0.1, 0.1, 0, 0, 1.6, '#555');
+  } else {                                       // alien
+    ground(ctx, sx, sy, 5, 2, 0.28);
+    fillEllipse(ctx, sx, sy - 5, 3, 5, shade(d.color, 0.85));
+    const hy = sy - 12 + Math.round(bob);
+    fillEllipse(ctx, sx, hy, 5, 4, d.color);
+    rect(ctx, sx - 3, hy - 1, 2, 2, '#101018'); rect(ctx, sx + 1, hy - 1, 2, 2, '#101018');
+    rect(ctx, sx, hy - 8, 1, 4, shade(d.color, 0.7)); rect(ctx, sx - 1, hy - 10, 3, 2, d.accent);
+    rect(ctx, sx - 5, sy - 6 + (Math.sin(t * 6 + c.phase) > 0.6 ? -3 : 0), 1, 4, d.color); rect(ctx, sx + 4, sy - 6, 1, 4, d.color);
+  }
+}
