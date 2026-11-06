@@ -183,6 +183,26 @@ export class UI {
     render();
     this.modal(b.def.name + ' - Job board', body);
   }
+  // wardrobe: the on-foot characters (press V to get out of the vehicle)
+  charactersBlock(game) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile;
+      body.append(el('h3', { text: 'character (V to get out)' }));
+      for (const c of game.reg.list('character').slice().sort((a, b) => a.price - b.price)) {
+        const have = P.characters.has(c.id), cur = P.character === c.id;
+        const chips = el('div', { class: 'chips' }, el('span', { class: 'chip', text: `walks ${c.speed} tiles/s` }), c.outfit === 'treadwalker' ? el('span', { class: 'chip', text: 'wears a tire' }) : null);
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', disabled: true, text: 'Playing' });
+        else if (have) btn = el('button', { class: 'btn', text: 'Play as', onclick: () => { game.selectCharacter(c.id); render(); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${c.price}`, disabled: P.cash < c.price, onclick: () => { const e = game.buyCharacter(c.id); this.toast(e || `Now playing as ${c.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: c.name }), c.desc ? el('small', { text: c.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
   openDealer(game) { this.game = game; this.modal('Auto Dealer', el('div', {}, this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true), this.trailersBlock(game, game.reg.list('trailer').slice().sort((a, b) => a.price - b.price), true))); }
   trailersBlock(game, list, dealer) {
     const body = el('div', { class: 'parts' });
@@ -238,6 +258,7 @@ export class UI {
       const P = game.profile;
       body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
       if (!shop) body.append(this.colorRow(game), el('button', { class: 'btn', text: 'Decals (draw on your roof)', onclick: () => this.openDecals(game, 'vehicle') }));
+      if (vehicles) body.append(this.charactersBlock(game));
       if (vehicles && vehicles.length > 1) { body.append(this.vehiclesBlock(game, vehicles, false)); }
       if (vehicles && game.profile.trailers.size) body.append(this.trailersBlock(game, game.reg.list('trailer').filter((t) => game.profile.trailers.has(t.id)), false));
       for (const slot of SLOTS) {
@@ -320,7 +341,7 @@ export class UI {
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
       el('p', { text: document.body.classList.contains('touch') ? 'Touch: hold the arrow pads to steer, GAS to go, BRK for a handbrake drift, REV to brake and reverse. Tap the prompt at the bottom to refuel, shop or race.' : 'W/A/S/D or arrows: drive   Space: handbrake' }),
-      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   +/-: zoom   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
+      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   V: get out / in   +/-: zoom   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
       el('p', { text: 'Enter: chat   Esc: menu' }),
       el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));
   }

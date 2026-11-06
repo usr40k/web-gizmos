@@ -3,7 +3,7 @@
 import { CHUNK } from '../world/world.js';
 import { hash } from '../util/rng.js';
 import { diamond, rect, shade, fillPoly, drawText, drawTextCentered, textWidth } from './pixel.js';
-import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar, drawWreck, drawParkedTrailer, drawCreature } from './sprites.js';
+import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar, drawWreck, drawParkedTrailer, drawCreature, drawWalker } from './sprites.js';
 
 export class Camera {
   constructor() { this.x = 0; this.y = 0; this.W = 480; this.H = 270; this.sx = 0; this.sy = 0; }
@@ -125,7 +125,15 @@ export class Renderer {
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });
 
     // cars (ghosts first so the player is drawn over on ties)
-    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, this.world.reg.get('vehicle', o.veh), o.trl ? { def: this.world.reg.get('trailer', o.trl), th: o.th } : null, { v: o.dv, t: o.dt }) });
+    for (const o of g.ghosts) {
+      const veh = this.world.reg.get('vehicle', o.veh), trl = o.trl ? { def: this.world.reg.get('trailer', o.trl), th: o.th } : null;
+      if (o.foot) {                                                  // on foot: a parked vehicle plus the walker
+        const pc = { x: o.foot.px, y: o.foot.py, h: o.foot.ph }, ch = this.world.reg.get('character', o.foot.ch) || this.world.reg.list('character')[0];
+        ents.push({ d: pc.x + pc.y, f: () => drawCar(ctx, cam, pc, o.color || '#ccc', 0.9, veh, trl, { v: o.dv, t: o.dt }) });
+        if (ch) ents.push({ d: o.x + o.y + 0.5, f: () => drawWalker(ctx, cam, { x: o.x, y: o.y, speed: Math.hypot(o.vx || 0, o.vy || 0), phase: g.t * 4 }, ch, g.t, 0.95) });
+      } else ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, veh, trl, { v: o.dv, t: o.dt }) });
+    }
+    if (g.walker) ents.push({ d: g.walker.x + g.walker.y + 0.5, f: () => drawWalker(ctx, cam, g.walker, g.char, t) });
     ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor, 1, g.veh, g.trailer ? { def: g.trailer, th: g.car.th } : null, g.decals) });
 
     ents.sort((a, b) => a.d - b.d);
@@ -138,12 +146,12 @@ export class Renderer {
       drawTextCentered(ctx, (o.name || '?').slice(0, 12), sx, sy - 6, '#ffffff', '#000');
     }
     // race compass
-    if (g.race && g.race.idx < g.race.points.length) this.drawCompass(g.race.points[g.race.idx], g.car, g.race.color);
-    else if (g.job) this.drawCompass({ x: g.job.tx, y: g.job.ty }, g.car, '#ffb020');
+    if (g.race && g.race.idx < g.race.points.length) this.drawCompass(g.race.points[g.race.idx], { x: g.camX, y: g.camY }, g.race.color);
+    else if (g.job) this.drawCompass({ x: g.job.tx, y: g.job.ty }, { x: g.camX, y: g.camY }, '#ffb020');
     else if (g.guide) {                                          // tutorial: arrow at the screen edge, or a bobbing marker over the target
       const [tx, ty] = cam.px(g.guide.x, g.guide.y, 0);
       if (tx > 14 && tx < cam.W - 14 && ty > 44 && ty < cam.H - 14) { const by = ty - 22 + Math.round(Math.sin(t * 5) * 2); fillPoly(ctx, [[tx - 5, by - 6], [tx + 5, by - 6], [tx, by]], '#000'); fillPoly(ctx, [[tx - 3, by - 5], [tx + 3, by - 5], [tx, by - 1]], '#00ffff'); }
-      else this.drawCompass(g.guide, g.car, '#00ffff');
+      else this.drawCompass(g.guide, { x: g.camX, y: g.camY }, '#00ffff');
     }
   }
 

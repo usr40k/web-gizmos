@@ -1,6 +1,7 @@
 // Game orchestration: ties world, car, economy, races and networking together. No DOM here except through `ui`.
 import { stepTrailer, trailerPose, hitchOffset, gapOf, canTow } from './trailer.js';
 import { newCar, stepCar, carStats, trailerPush, fuelBurn, FUEL_BASE_PRICE } from './car.js';
+import { newWalker, stepWalker } from './walker.js';
 import { Peers, packBeacon } from '../net/transport.js';
 import { Tutorial } from './tutorial.js';
 import { strHash, rand01 } from '../util/rng.js';
@@ -16,6 +17,8 @@ export class Game {
     const sp = profile.pos && Number.isFinite(profile.pos.x) ? profile.pos : world.spawn();
     this.car = newCar({ x: sp.x, y: sp.y, h: sp.h || 0 });
     this.fuel = profile.fuel === null ? this.stats.fuelCap : Math.min(profile.fuel, this.stats.fuelCap);
+    const wk = profile.walk;
+    this.onFoot = !!wk; this.walker = wk ? newWalker(wk.x, wk.y, wk.h) : null;          // out of the vehicle (parked at this.car)
     this.race = null; this.near = null; this.coins = []; this.wrecks = []; this.creatures = []; this.flags = {};
     this.tutorial = new Tutorial(this, ui);
     this.job = profile.job && reg.get('job', profile.job.id) ? { ...profile.job, def: reg.get('job', profile.job.id) } : null;     // active haul
@@ -25,6 +28,9 @@ export class Game {
     transport.onStatus = (text, ok) => ui.status(text, ok);
   }
 
+  get focus() { return this.onFoot ? this.walker : this.car; }
+  charDef() { return this.reg.get('character', this.profile.character) || this.reg.list('character')[0]; }
+
   recompute() { this.stats = carStats(this.reg, this.profile.equipped, this.profile.vehicle, this.profile.trailer); this.fuel = Math.min(this.fuel ?? Infinity, this.stats.fuelCap); }
   markDirty() { this.dirty = true; }
 
@@ -32,49 +38,62 @@ export class Game {
   update(dt, input) {
     this.t += dt; this.now = Date.now();
     const { car, world } = this;
-    const h0 = car.h;
-    const out = stepCar(car, input, dt, world, this.stats, this.fuel);
-    if (this.stats.trailer) {
-      if (car.th === undefined) car.th = car.h;
-      const yaw = Math.atan2(Math.sin(car.h - h0), Math.cos(car.h - h0)) / dt;
-      const push = trailerPush(world, car, this.stats.veh, this.stats.trailer);
-      if (push) { car.x += push.nx * push.pen; car.y += push.ny * push.pen; const vn = car.vx * push.nx + car.vy * push.ny; if (vn < 0) { car.vx -= 1.4 * vn * push.nx; car.vy -= 1.4 * push.ny * vn; car.vx *= 0.85; car.vy *= 0.85; if (-vn > 5) this.ui.toast('Trailer hit!', 500); } }
-      if (stepTrailer(car, this.stats.veh, this.stats.trailer, dt, yaw)) { const k = Math.max(0, 1 - 2.5 * dt); car.vx *= k; car.vy *= k; car.speed *= k; }
-    } else car.th = undefined;
-    this.fuel = Math.max(0, this.fuel - fuelBurn(this.stats, car.speed, out.thr) * dt);
-    this.profile.stats.km += Math.abs(car.speed) * dt / 1000;
-    this.speedMax = Math.max(this.speedMax, Math.abs(car.speed));
-    if (out.hit > 6) this.ui.toast('Ouch!', 600);
+    let me = car, out = { hit: 0, thr: 0 };
+    if (this.onFoot) {
+      me = this.walker;
+      stepWalker(me, input, dt, world, this.charDef().speed, [{ x: car.x, y: car.y, r: this.stats.veh.length * 0.45 }]);
+      car.vx = car.vy = car.speed = 0;
+      this.profile.stats.km += me.speed * dt / 1000;
+    } else {
+      const h0 = car.h;
+      const out = stepCar(car, input, dt, world, this.stats, this.fuel);
+      if (this.stats.trailer) {
+        if (car.th === undefined) car.th = car.h;
+        const yaw = Math.atan2(Math.sin(car.h - h0), Math.cos(car.h - h0)) / dt;
+        const push = trailerPush(world, car, this.stats.veh, this.stats.trailer);
+        if (push) { car.x += push.nx * push.pen; car.y += push.ny * push.pen; const vn = car.vx * push.nx + car.vy * push.ny; if (vn < 0) { car.vx -= 1.4 * vn * push.nx; car.vy -= 1.4 * push.ny * vn; car.vx *= 0.85; car.vy *= 0.85; if (-vn > 5) this.ui.toast('Trailer hit!', 500); } }
+        if (stepTrailer(car, this.stats.veh, this.stats.trailer, dt, yaw)) { const k = Math.max(0, 1 - 2.5 * dt); car.vx *= k; car.vy *= k; car.speed *= k; }
+      } else car.th = undefined;
+      this.fuel = Math.max(0, this.fuel - fuelBurn(this.stats, car.speed, out.thr) * dt);
+      this.profile.stats.km += Math.abs(car.speed) * dt / 1000;
+      this.speedMax = Math.max(this.speedMax, Math.abs(car.speed));
+      if (out.hit > 6) this.ui.toast('Ouch!', 600);
+
+    }
 
     // biome banner
-    const biome = car.biome;
+    const biome = me.biome;
     if (biome !== this.lastBiome) { if (this.lastBiome) this.ui.banner('Entering ' + biome.name); this.lastBiome = biome; }
 
-    this.wrecks = world.wrecksNear(car.x - 30, car.y - 30, car.x + 30, car.y + 30, this.now);
-    this.creatures = world.creaturesNear(car.x - 30, car.y - 30, car.x + 30, car.y + 30, this.now);
+    this.wrecks = world.wrecksNear(me.x - 30, me.y - 30, me.x + 30, me.y + 30, this.now);
+    this.creatures = world.creaturesNear(me.x - 30, me.y - 30, me.x + 30, me.y + 30, this.now);
     // coins
-    this.coins = world.coinsNear(car.x - 22, car.y - 22, car.x + 22, car.y + 22, this.now);
+    this.coins = world.coinsNear(me.x - 22, me.y - 22, me.x + 22, me.y + 22, this.now);
     for (const c of this.coins) {
-      if (Math.hypot(c.x - car.x, c.y - car.y) < COIN_R) {
+      if (Math.hypot(c.x - me.x, c.y - me.y) < COIN_R) {
         world.collectCoin(c.id, this.now); this.profile.cash += COIN_VALUE; this.profile.stats.coins++; this.markDirty(); this.ui.pickup('+$' + COIN_VALUE);
       }
     }
 
     // nearest interactable
     this.near = null;
-    if (Math.abs(car.speed) < 4.5) {
+    if (Math.abs(me.speed) < 4.5) {
       let best = ZONE_R;
-      for (const b of world.buildingsInRect(car.x - 4, car.y - 4, car.x + 4, car.y + 4)) {
+      for (const b of world.buildingsInRect(me.x - 4, me.y - 4, me.x + 4, me.y + 4)) {
         if (b.def.kind === 'decor') continue;
-        const d = Math.hypot(b.doorX - car.x, b.doorY - car.y);
+        const d = Math.hypot(b.doorX - me.x, b.doorY - me.y);
         if (d < best) { best = d; this.near = b; }
       }
     }
-    if (!this.near && Math.abs(car.speed) < 4.5) for (const w of this.wrecks) if (Math.hypot(w.x - car.x, w.y - car.y) < 4.5) { this.near = { wreck: w, def: { kind: 'wreck', name: w.def.name } }; break; }
-    if (!this.near && Math.abs(car.speed) < 4.5) for (const c of this.creatures) if (Math.hypot(c.x - car.x, c.y - car.y) < 4.5) { this.near = { creature: c, def: { kind: 'creature', name: c.def.name } }; break; }
-    if (!this.near && Math.abs(car.speed) < 3) {
-      if (this.profile.trailer) this.near = { def: { kind: 'trailer', name: this.stats.trailer.name }, act: 'drop' };
-      else if (this.canHitchParked()) this.near = { def: { kind: 'trailer', name: this.reg.get('trailer', this.profile.parked.id).name }, act: 'hitch' };
+    if (!this.near && Math.abs(me.speed) < 4.5) for (const w of this.wrecks) if (Math.hypot(w.x - me.x, w.y - me.y) < 4.5) { this.near = { wreck: w, def: { kind: 'wreck', name: w.def.name } }; break; }
+    if (!this.near && Math.abs(me.speed) < 4.5) for (const c of this.creatures) if (Math.hypot(c.x - me.x, c.y - me.y) < 4.5) { this.near = { creature: c, def: { kind: 'creature', name: c.def.name } }; break; }
+    if (!this.near && Math.abs(me.speed) < 3) {
+      if (!this.onFoot && this.profile.trailer) this.near = { def: { kind: 'trailer', name: this.stats.trailer.name }, act: 'drop' };
+      else if (!this.onFoot && this.canHitchParked()) this.near = { def: { kind: 'trailer', name: this.reg.get('trailer', this.profile.parked.id).name }, act: 'hitch' };
+    }
+    if (!this.near && Math.abs(me.speed) < 3) {
+      if (this.onFoot) { if (Math.hypot(this.car.x - me.x, this.car.y - me.y) < 3.4 + this.stats.veh.length * 0.45) this.near = { def: { kind: 'vehicle', name: this.stats.veh.name }, act: 'in' }; }
+      else this.near = { def: { kind: 'vehicle', name: this.stats.veh.name }, act: 'out' };
     }
     this.ui.prompt(this.near ? this.promptFor(this.near) : null);
 
@@ -84,13 +103,14 @@ export class Game {
     this.updateJob(dt);
 
     // out-of-fuel rescue prompt
-    if (this.fuel <= 0 && Math.abs(car.speed) < 0.6) { this.strandedT += dt; if (this.strandedT > 2) this.ui.prompt({ text: `Out of fuel! Press T to call a tow ($${this.towCost()})`, action: () => this.tow() }); }
+    if (!this.onFoot && this.fuel <= 0 && Math.abs(car.speed) < 0.6) { this.strandedT += dt; if (this.strandedT > 2) this.ui.prompt({ text: `Out of fuel! Press T to call a tow ($${this.towCost()})`, action: () => this.tow() }); }
     else this.strandedT = 0;
 
     // network
     this.beaconT += dt * 1000;
-    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; const bc = packBeacon(car, this.profile.name, this.profile.color, this.profile.vehicle, this.profile.trailer);
+    if (this.beaconT >= this.transport.beaconMs) { this.beaconT = 0; const bc = packBeacon(this.onFoot ? { ...me, th: car.th } : car, this.profile.name, this.profile.color, this.profile.vehicle, this.profile.trailer);
       if ((this.beaconN = (this.beaconN || 0) + 1) % 15 === 1) { const P = this.profile; bc.dv = P.decals['v:' + P.vehicle] || ''; bc.dt = P.trailer ? P.decals['t:' + P.trailer] || '' : ''; }   // decals are sent rarely, peers cache them
+      if (this.onFoot) { bc.f = 1; bc.ch = this.profile.character; bc.px = Math.round(car.x * 100) / 100; bc.py = Math.round(car.y * 100) / 100; bc.ph = Math.round(car.h * 100) / 100; }
       this.transport.sendBeacon(bc); }
     this.ghosts = this.peers.tick(dt, this.now);
 
@@ -98,12 +118,13 @@ export class Game {
     this.saveT += dt;
     if (this.saveT > 12 && this.dirty) this.save();
 
-    this.ui.hud({ cash: this.profile.cash, fuel: this.fuel, cap: this.stats.fuelCap, speed: Math.abs(car.speed), top: this.stats.topSpeed, road: car.onRoad, peers: this.ghosts.length, race: this.race, job: this.jobText(), t: this.t });
+    this.ui.hud({ cash: this.profile.cash, fuel: this.fuel, cap: this.stats.fuelCap, speed: Math.abs(me.speed), top: this.stats.topSpeed, road: this.onFoot ? true : car.onRoad, peers: this.ghosts.length, race: this.race, job: this.jobText(), t: this.t });
   }
 
   save() {
     this.saveT = 0; this.dirty = false;
     this.syncJob(); this.profile.fuel = this.fuel; this.profile.pos = { x: +this.car.x.toFixed(1), y: +this.car.y.toFixed(1), h: +this.car.h.toFixed(2) };
+    this.profile.walk = this.onFoot ? { x: +this.walker.x.toFixed(1), y: +this.walker.y.toFixed(1), h: +this.walker.h.toFixed(2) } : null;
     this.profile.rev++;
     this.transport.saveProfile(this.profile.toJSON());
   }
@@ -111,10 +132,12 @@ export class Game {
   // ------------------------------------------------------------------ interactions
   promptFor(b) {
     const d = b.def;
+    if (d.kind === 'vehicle') return { text: b.act === 'in' ? `[V] Get in (${d.name})` : `[V] Get out`, action: () => this.toggleVehicle() };
     if (d.kind === 'trailer') return { text: b.act === 'drop' ? `[H] Drop ${d.name}` : `[H] Hitch ${d.name}`, action: () => this.toggleTrailer() };
     if (d.kind === 'creature') return { text: `[E] Talk to ${d.name}`, action: () => this.talk(b.creature) };
     if (d.kind === 'wreck') return { text: `[E] Salvage ${d.name}`, action: () => this.salvage(b.wreck) };
     if (d.kind === 'gas_station') {
+      if (this.onFoot && Math.hypot(this.car.x - b.doorX, this.car.y - b.doorY) > 10) return { text: d.name + ': bring your vehicle here to refuel' };
       const need = this.stats.fuelCap - this.fuel;
       if (need < 0.5) return { text: d.name + ': tank is full' };
       const price = FUEL_BASE_PRICE * b.biome.fuelPrice;
@@ -125,12 +148,32 @@ export class Game {
     if (d.kind === 'depot') return { text: this.job ? `${d.name}: finish your current job first` : `[E] Job board (${d.name})`, action: this.job ? null : () => this.ui.openJobs(this, b) };
     if (d.kind === 'dealer') return { text: `[E] Browse ${d.name}`, action: () => this.ui.openDealer(this) };
     if (d.kind === 'race_pad') {
+      if (this.onFoot) return { text: 'Races start from a vehicle: get back in' };
       const r = this.reg.get('race', d.race);
       return this.race ? { text: '[E] Cancel current race', action: () => this.cancelRace('Race cancelled') } : { text: `[E] Start ${r.name} (par ${r.parTime}s, $${r.payout})`, action: () => this.startRace(b) };
     }
     return null;
   }
   interact() { if (this.near) { const p = this.promptFor(this.near); if (p && p.action) p.action(); } else if (this.fuel <= 0 && this.strandedT > 2) this.tow(); }
+
+  // V: get out of the vehicle (it stays parked) or back in when standing next to it
+  toggleVehicle() {
+    const car = this.car;
+    if (!this.onFoot) {
+      if (Math.abs(car.speed) > 3) { this.ui.toast('Stop the vehicle first', 1200); return; }
+      if (this.race) this.cancelRace('Race cancelled');
+      const c = Math.cos(car.h), s = Math.sin(car.h), off = this.stats.veh.width * 0.5 + 0.9;
+      this.walker = newWalker(car.x - s * off, car.y + c * off, car.h + Math.PI / 2);
+      car.vx = car.vy = car.speed = 0; this.onFoot = true;
+      this.ui.toast('On foot. Walk back to your vehicle and press V', 2200);
+    } else {
+      if (Math.hypot(car.x - this.walker.x, car.y - this.walker.y) > 3.4 + this.stats.veh.length * 0.45) { this.ui.toast('Too far from your vehicle', 1200); return; }
+      this.onFoot = false; this.walker = null; this.ui.toast('Back in the ' + this.stats.veh.name, 1200);
+    }
+    this.markDirty(); this.save();
+  }
+  selectCharacter(id) { if (this.profile.selectCharacter(id)) { this.markDirty(); this.save(); } }
+  buyCharacter(id) { const e = this.profile.buyCharacter(id); if (!e) { this.markDirty(); this.save(); } return e; }
 
   // ---- haul jobs. Offers are deterministic per depot and 10-minute window, so every player sees the same board.
   jobOffers(b) {

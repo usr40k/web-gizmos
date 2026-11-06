@@ -195,6 +195,25 @@ export const SCHEMA = {
     },
   },
 
+  character: {
+    plural: 'characters',
+    doc: 'A playable on-foot character. Players can get out of their vehicle (V) and walk around as this character. outfit picks the body drawn; the colours dress it.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Treadwalker".'),
+      desc: { type: 'string', max: 80, optional: true },
+      price: { type: 'int', min: 0, max: 100000, default: 0, doc: '0 = free. At least one character must cost 0.' },
+      outfit: { type: 'enum', values: ['person', 'treadwalker'], required: true, doc: 'person = ordinary human; treadwalker = a person wearing a big tire around the torso.' },
+      speed: { type: 'number', min: 1, max: 8, default: 3.2, doc: 'Walking speed in tiles per second.' },
+      skin: { type: 'color', default: '#e0b48a' },
+      hair: { type: 'color', default: '#3a2a1a' },
+      shirt: { type: 'color', default: '#4a6ad0' },
+      pants: { type: 'color', default: '#2a2f4a' },
+      shoes: { type: 'color', default: '#222222' },
+      tire: { type: 'color', default: '#4a3a2c', doc: 'Treadwalker only: the tire rubber colour.' },
+    },
+  },
+
   job: {
     plural: 'jobs',
     doc: 'A haul offered at depots. The player drives to a drop zone down the same highway. rate = cash per tile of distance (multiplied by 1 + trailer load). needs say what the player must be pulling.',

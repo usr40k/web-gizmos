@@ -29,6 +29,13 @@ export class Profile {
     }
     const jb = data.job;
     this.job = jb && reg.get('job', jb.id) && [jb.tx, jb.ty, jb.dist, jb.pay, jb.left, jb.limit].every(Number.isFinite) ? { ...jb } : null;     // active haul
+    const cs = reg.list('character').slice().sort((a, b) => a.price - b.price);
+    this.characters = new Set((Array.isArray(data.characters) ? data.characters : []).filter((id) => cs.some((c) => c.id === id)));
+    if (cs[0]) this.characters.add(cs[0].id);
+    for (const c of cs) if (c.price === 0) this.characters.add(c.id);
+    this.character = this.characters.has(data.character) ? data.character : (cs[0] && cs[0].id);
+    const wk = data.walk;
+    this.walk = wk && [wk.x, wk.y, wk.h].every(Number.isFinite) ? { x: wk.x, y: wk.y, h: wk.h } : null;     // set while the player is out of the vehicle
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -47,7 +54,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], job: this.job, decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], characters: [...this.characters], character: this.character, walk: this.walk, job: this.job, decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {
@@ -71,6 +78,14 @@ export class Profile {
     if (this.trailer && canTow(this.reg.get('vehicle', id), this.reg.get('trailer', this.trailer))) this.trailer = null;   // cannot pull it: unhitch
     return true;
   }
+  buyCharacter(id) {
+    const c = this.reg.get('character', id);
+    if (!c) return 'Unknown character';
+    if (this.characters.has(id)) return 'Already owned';
+    if (this.cash < c.price) return 'Not enough cash';
+    this.cash -= c.price; this.characters.add(id); this.character = id; return null;
+  }
+  selectCharacter(id) { if (!this.characters.has(id)) return false; this.character = id; return true; }
   buyTrailer(id) {
     const t = this.reg.get('trailer', id);
     if (!t) return 'Unknown trailer';

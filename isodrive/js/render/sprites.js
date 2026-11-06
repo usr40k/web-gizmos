@@ -346,3 +346,28 @@ export function drawCreature(ctx, cam, c, t) {
     rect(ctx, sx - 5, sy - 6 + (Math.sin(t * 6 + c.phase) > 0.6 ? -3 : 0), 1, 4, d.color); rect(ctx, sx + 4, sy - 6, 1, 4, d.color);
   }
 }
+
+// A person on foot, about 11 px tall. ch = character definition; w = { x, y, h, speed, phase }.
+export function drawWalker(ctx, cam, w, ch, t, alpha = 1) {
+  const [sx, sy] = cam.px(w.x, w.y, 0);
+  ctx.globalAlpha = alpha;
+  ground(ctx, sx, sy + 1, 5, 2, 0.3 * alpha);
+  const moving = w.speed > 0.4, sw = moving ? Math.round(Math.sin(w.phase * 2)) : 0, bob = moving ? Math.abs(Math.sin(w.phase * 2)) > 0.7 ? 1 : 0 : 0;
+  const dark = (c) => shade(c, 0.75);
+  // legs
+  rect(ctx, sx - 2, sy - 4 + (sw > 0 ? -1 : 0), 2, 4 - (sw > 0 ? 1 : 0), ch.pants); rect(ctx, sx, sy - 4 + (sw < 0 ? -1 : 0), 2, 4 - (sw < 0 ? 1 : 0), dark(ch.pants));
+  rect(ctx, sx - 2, sy - 1 + (sw > 0 ? -1 : 0), 2, 1, ch.shoes); rect(ctx, sx, sy - 1 + (sw < 0 ? -1 : 0), 2, 1, ch.shoes);
+  const by = sy - 4 - bob;
+  if (ch.outfit === 'treadwalker') {                       // a big tire worn around the torso, sleeves sticking out at the sides
+    rect(ctx, sx - 5, by - 5 + sw, 2, 5, ch.shirt); rect(ctx, sx + 3, by - 5 - sw, 2, 5, shade(ch.shirt, 0.8));
+    rect(ctx, sx - 5, by + sw, 2, 2, ch.skin); rect(ctx, sx + 3, by - sw, 2, 2, ch.skin);
+    fillEllipse(ctx, sx, by - 4, 4, 6, shade(ch.tire, 0.7));
+    fillEllipse(ctx, sx, by - 4, 3, 5, ch.tire);
+    for (let i = 0; i < 4; i++) rect(ctx, sx - 2, by - 8 + i * 3, 4, 1, shade(ch.tire, 0.78));
+    rect(ctx, sx - 2, by - 7, 1, 7, shade(ch.tire, 1.18));
+  } else {
+    rect(ctx, sx - 2, by - 5, 4, 5, ch.shirt); rect(ctx, sx - 3, by - 5 + sw, 1, 4, dark(ch.shirt)); rect(ctx, sx + 2, by - 5 - sw, 1, 4, dark(ch.shirt));
+    rect(ctx, sx - 2, by - 8, 4, 3, ch.skin); rect(ctx, sx - 2, by - 9, 4, 2, ch.hair);
+  }
+  ctx.globalAlpha = 1;
+}

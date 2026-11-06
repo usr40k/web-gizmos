@@ -38,8 +38,8 @@ export const STEPS = [
     touch: 'Drive through the glowing checkpoints in order. The arrow points to the next one. Beat the par time for a bonus!',
     done: (g) => g.flags.raceEnd },
   { id: 'end',
-    kbd: 'That is everything. Salvage wrecks beside the highways (E) for cash and fuel, hitch trailers with H, and watch the tank: stations out in the wild are far apart. Have fun!',
-    touch: 'That is everything. Salvage wrecks beside the highways for cash and fuel, drop and hitch trailers by tapping the prompt, and watch the tank: stations out in the wild are far apart. Have fun!',
+    kbd: 'That is everything. Salvage wrecks beside the highways (E) for cash and fuel, hitch trailers with H, get out and walk with V, and watch the tank: stations out in the wild are far apart. Have fun!',
+    touch: 'That is everything. Salvage wrecks beside the highways for cash and fuel, drop and hitch trailers or get out with the OUT/IN button, and watch the tank: stations out in the wild are far apart. Have fun!',
     timeout: 12 },
 ];
 

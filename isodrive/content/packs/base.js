@@ -160,6 +160,12 @@ export default {
     { id: 'semi_tanker', name: 'Semi Tanker', shape: 'tanker', coupling: 'fifth', price: 7000, desc: 'Heavy liquid hauler.', length: 4.6, width: 1.0, height: 8, load: 1.2, color: '#c8ccd2', accent: '#d0a030' },
   ],
 
+  characters: [
+    { id: 'driver', name: 'Driver', desc: 'Just a regular road tripper.', price: 0, outfit: 'person', speed: 3.2 },
+    { id: 'mechanic', name: 'Mechanic', desc: 'Overalls and a bad attitude.', price: 120, outfit: 'person', speed: 3.4, shirt: '#d0702a', pants: '#2c4a8a', hair: '#1a1a1a', skin: '#b88660' },
+    { id: 'treadwalker', name: 'Treadwalker', desc: 'Wears a Farben tire. Slow and sturdy.', price: 0, outfit: 'treadwalker', speed: 2.7, shirt: '#4a6a8a', pants: '#14161c', skin: '#3a2a20', tire: '#4a3a2c' },
+  ],
+
   jobs: [
     { id: 'parcel', name: 'Parcel run', desc: 'A few boxes in the back. Any vehicle.', rate: 0.22, minDist: 400, maxDist: 1600, weight: 3, coupling: 'none' },
     { id: 'gravel', name: 'Gravel haul', desc: 'Any trailer will do.', rate: 0.34, minDist: 600, maxDist: 2200, weight: 3, coupling: 'any', minLoad: 0.25 },
