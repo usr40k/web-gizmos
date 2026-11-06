@@ -26,6 +26,7 @@ export class Renderer {
   constructor(canvas, world) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.world = world;
     this.cam = new Camera();
+    try { this.zoom = Math.min(2, Math.max(0.5, parseFloat(localStorage.getItem('isodrive:zoom')) || 1)); } catch { this.zoom = 1; }
     this.resize();
   }
 
@@ -34,12 +35,21 @@ export class Renderer {
   resize() {
     const dpr = window.devicePixelRatio || 1;
     const dw = Math.round(window.innerWidth * dpr), dh = Math.round(window.innerHeight * dpr);
-    const ds = Math.max(2, Math.round(Math.min(dw, dh) / 260));
+    const base = Math.max(2, Math.round(Math.min(dw, dh) / 260));
+    const ds = Math.max(1, Math.round(base * this.zoom * 4) / 4);          // zoom 1 = crisp integer scale; other zooms may be fractional
     this.scale = ds / dpr;
     this.cam.W = Math.ceil(dw / ds); this.cam.H = Math.ceil(dh / ds);
     this.canvas.width = this.cam.W; this.canvas.height = this.cam.H;
     this.canvas.style.width = (this.cam.W * ds / dpr) + 'px'; this.canvas.style.height = (this.cam.H * ds / dpr) + 'px';
     this.ctx.imageSmoothingEnabled = false;
+  }
+
+  // zoom 0.5 (far) .. 2 (close), steps of 0.25
+  setZoom(z) {
+    this.zoom = Math.min(2, Math.max(0.5, Math.round(z * 4) / 4));
+    try { localStorage.setItem('isodrive:zoom', String(this.zoom)); } catch { /* ignore */ }
+    this.resize();
+    return this.zoom;
   }
 
   chunkCanvas(c) {

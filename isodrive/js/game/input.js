@@ -20,6 +20,8 @@ export class Input {
       else if (k === 'Escape') this.actions.menu();
       else if (k === 'g') this.actions.garage();
       else if (k === 't') this.actions.tow();
+      else if (k === '=' || k === '+') this.actions.zoom && this.actions.zoom(0.25);
+      else if (k === '-' || k === '_') this.actions.zoom && this.actions.zoom(-0.25);
       else if (k === 'h') this.actions.hitch && this.actions.hitch();
     }
     if (!this.enabled && down) return;

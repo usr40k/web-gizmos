@@ -272,10 +272,16 @@ export class UI {
       el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
       el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
       el('button', { class: 'btn', text: 'Replay tutorial', onclick: () => { this.closeModal(); g.tutorial.start(); } }),
+      this.zoomRow(g),
       document.fullscreenEnabled ? el('button', { class: 'btn', text: 'Toggle fullscreen', onclick: () => { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); this.closeModal(); } }) : null,
       g.transport.kind === 'matrix' ? el('button', { class: 'btn', text: 'Log out', onclick: async () => { g.save(); await g.transport.logout(); const { forgetMatrixSessions } = await import('../net/session.js'); forgetMatrixSessions(g.transport.base, g.transport.userId); location.href = location.pathname; } }) : null,
       el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
     this.modal('Menu', body);
+  }
+  zoomRow(g) {
+    const r = g.renderer, label = el('span', { class: 'zoomval', text: Math.round(r.zoom * 100) + '%' });
+    const step = (d) => { label.textContent = Math.round(r.setZoom(r.zoom + d) * 100) + '%'; };
+    return el('div', { class: 'row zoomrow' }, el('span', { text: 'Zoom' }), el('button', { class: 'btn', text: '-', 'aria-label': 'zoom out', onclick: () => step(-0.25) }), label, el('button', { class: 'btn', text: '+', 'aria-label': 'zoom in', onclick: () => step(0.25) }), el('button', { class: 'btn', text: 'Reset', onclick: () => step(1 - r.zoom) }));
   }
   // Where does this player's save live? Explains it plainly, and offers the fix when the room is not set up.
   storageBlock(g) {
@@ -294,7 +300,7 @@ export class UI {
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
       el('p', { text: document.body.classList.contains('touch') ? 'Touch: hold the arrow pads to steer, GAS to go, BRK for a handbrake drift, REV to brake and reverse. Tap the prompt at the bottom to refuel, shop or race.' : 'W/A/S/D or arrows: drive   Space: handbrake' }),
-      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
+      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   +/-: zoom   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
       el('p', { text: 'Enter: chat   Esc: menu' }),
       el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));
   }

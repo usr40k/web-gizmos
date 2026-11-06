@@ -71,6 +71,7 @@ async function main() {
     chat: () => { if (!ui.modalOpen) ui.openChat(); },
     tow: () => game && !ui.modalOpen && game.tow(),
     hitch: () => game && !ui.modalOpen && game.toggleTrailer(),
+    zoom: (d) => { if (!ui.modalOpen) { const z = renderer.setZoom(renderer.zoom + d); ui.toast('Zoom ' + Math.round(z * 100) + '%', 700); } },
     garage: () => game && (ui.modalOpen ? ui.closeModal() : ui.openGarage(game)),
   });
   ui.onModal = (open) => { input.enabled = !open; };
