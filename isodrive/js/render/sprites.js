@@ -206,7 +206,7 @@ function drawDecalTop(ctx, cam, data, kind, cx, cy, ang, len, wid, z) {
     ctx.fillStyle = PAL[idx]; ctx.fillRect(sx, sy, 2, 1);
   }
 }
-const DECAL_ZONE = { sedan: [0, 1, 1, 4.5], wagon: [0, 1, 1, 4.5], suv: [0, 1, 1, 5], pickup: [0, 1, 1, 4.2], van: [-0.08, 0.84, 1, 0], tow: [0.28, 0.4, 1, 0], semi: [0.24, 0.42, 1, 0] };
+const DECAL_ZONE = { sedan: [0, 1, 1, 4.5], wagon: [0, 1, 1, 4.5], suv: [0, 1, 1, 5], pickup: [0, 1, 1, 4.2], van: [-0.08, 0.84, 1, 0], tow: [0.28, 0.4, 1, 0], semi: [0.14, 0.26, 1, 0], cabover: [0.3, 0.4, 1, 0] };
 
 export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer, decals) {
   const { x, y, h } = car;
@@ -226,7 +226,15 @@ export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer, decals) {
   else if (shape === 'pickup') { box(0, 1, 1, 2, 2.2, color, color); box(0.18, 0.4, 0.88, 4.2, 2.8, GLASS, shade(color, 0.92)); box(-0.28, 0.42, 0.96, 4.2, 0.9, dark, dark); }
   else if (shape === 'van') { box(-0.08, 0.84, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.2, 0.92, 2, 3, color, color); box(0.28, 0.06, 0.8, 4.6, 2.4, GLASS, GLASS); }
   else if (shape === 'tow') { box(0.28, 0.4, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.1, 0.84, 4.8, 2.4, GLASS, GLASS); box(-0.2, 0.62, 0.96, 2, 1, '#6c7480', '#8a94a2'); box(0.2, 0.1, 0.6, H, 1, '#ffb020', '#ffd24a'); }
-  else if (shape === 'semi') { box(0.24, 0.42, 1, 2, H - 2, color, shade(color, 1.1)); box(0.38, 0.1, 0.84, 5, 2.6, GLASS, GLASS); box(-0.12, 0.76, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.3, 0.3, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44'); box(0.02, 0.14, 1, 2, H - 3.5, dark, dark); }
+  else if (shape === 'semi') {              // conventional: long hood, upright cab, sleeper, fifth wheel
+    box(0.38, 0.26, 0.9, 2, 3.2, color, shade(color, 1.12)); box(0.5, 0.03, 0.5, 3.3, 0.8, '#aab', '#ccd');            // hood + grille bar
+    box(0.14, 0.26, 1, 2, H - 2, color, shade(color, 1.1)); box(0.27, 0.04, 0.84, 5, 2.6, GLASS, GLASS);
+    box(-0.1, 0.2, 1, 2, H - 3, dark, dark); box(-0.27, 0.42, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.3, 0.3, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44');
+  }
+  else if (shape === 'cabover') {           // flat nose: the cab sits right over the engine, so the truck is short
+    box(0.3, 0.4, 1, 2, H - 1.5, color, shade(color, 1.12)); box(0.5, 0.02, 0.86, 4.6, 3, GLASS, GLASS); box(0.5, 0.03, 0.5, 2.4, 1, '#aab', '#ccd');
+    box(0.02, 0.24, 1, 2, H - 3, dark, dark); box(-0.22, 0.5, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.26, 0.32, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44');
+  }
   else { box(0, 1, 1, 2, 2.5, color, color); box(-0.1, 0.5, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
   let pose = null;
   if (trailer && trailer.def && v) { pose = trailerPose(car, v, trailer.def, trailer.th); addTrailer(parts, ctx, cam, pose, trailer.def, v); }

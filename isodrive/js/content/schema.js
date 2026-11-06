@@ -156,7 +156,7 @@ export const SCHEMA = {
     fields: {
       id: ID,
       name: NAME('e.g. "Pickup".'),
-      shape: { type: 'enum', values: ['sedan', 'wagon', 'suv', 'pickup', 'van', 'tow', 'semi'], required: true, doc: 'Which body is drawn.' },
+      shape: { type: 'enum', values: ['sedan', 'wagon', 'suv', 'pickup', 'van', 'tow', 'semi', 'cabover'], required: true, doc: 'Which body is drawn. semi = conventional (long hood), cabover = flat-nose cab over the engine.' },
       price: { type: 'int', min: 0, max: 1000000, required: true, doc: '0 = free starter (at least one vehicle must cost 0).' },
       desc: { type: 'string', max: 80, optional: true },
       length: { type: 'number', min: 1.2, max: 4, default: 1.64, doc: 'Tiles long (sedan 1.64). Longer vehicles are also harder to turn.' },
