@@ -120,6 +120,7 @@ export class Renderer {
     if (g.parked) ents.push({ d: g.parked.x + g.parked.y, f: () => drawParkedTrailer(ctx, cam, g.parked, world.reg.get('trailer', g.parked.id)) });
     for (const cr of g.creatures || []) ents.push({ d: cr.x + cr.y, f: () => drawCreature(ctx, cam, cr, t) });
     for (const w of g.wrecks || []) ents.push({ d: w.x + w.y, f: () => drawWreck(ctx, cam, w, t) });
+    if (g.job) ents.push({ d: g.job.tx + g.job.ty, f: () => drawCheckpoint(ctx, cam, g.job.tx, g.job.ty, '#ffb020', true, t) });
     // coins
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });
 
@@ -138,6 +139,7 @@ export class Renderer {
     }
     // race compass
     if (g.race && g.race.idx < g.race.points.length) this.drawCompass(g.race.points[g.race.idx], g.car, g.race.color);
+    else if (g.job) this.drawCompass({ x: g.job.tx, y: g.job.ty }, g.car, '#ffb020');
     else if (g.guide) {                                          // tutorial: arrow at the screen edge, or a bobbing marker over the target
       const [tx, ty] = cam.px(g.guide.x, g.guide.y, 0);
       if (tx > 14 && tx < cam.W - 14 && ty > 44 && ty < cam.H - 14) { const by = ty - 22 + Math.round(Math.sin(t * 5) * 2); fillPoly(ctx, [[tx - 5, by - 6], [tx + 5, by - 6], [tx, by]], '#000'); fillPoly(ctx, [[tx - 3, by - 5], [tx + 3, by - 5], [tx, by - 1]], '#00ffff'); }

@@ -89,7 +89,7 @@ async function main() {
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     game.update(dt, input.read());
-    renderer.draw({ car: game.car, carColor: profile.color, veh: game.stats.veh, trailer: game.stats.trailer, ghosts: game.ghosts || [], wrecks: game.wrecks, creatures: game.creatures, parked: profile.parked, guide: game.tutorial.guide, decals: game.decalsNow(), race: game.race, near: game.near, coins: game.coins, camX: game.car.x, camY: game.car.y, t: game.t });
+    renderer.draw({ car: game.car, carColor: profile.color, veh: game.stats.veh, trailer: game.stats.trailer, ghosts: game.ghosts || [], wrecks: game.wrecks, creatures: game.creatures, parked: profile.parked, guide: game.tutorial.guide, job: game.job, decals: game.decalsNow(), race: game.race, near: game.near, coins: game.coins, camX: game.car.x, camY: game.car.y, t: game.t });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

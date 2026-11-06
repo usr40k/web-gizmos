@@ -420,6 +420,11 @@ export class World {
   }
 
   // ---------------------------------------------------------------- races
+  // drop zone `dist` tiles down the same highway as a depot (dir = +1 or -1)
+  jobDestination(bld, dist, dir) {
+    const a = bld.along + dir * dist;
+    return bld.axis === 'H' ? { x: a, y: this.roadY(bld.idx, a) } : { x: this.roadX(bld.idx, a), y: a };
+  }
   raceCheckpoints(bld, race) {
     const dir = hash(this.seed, strHash(bld.key), 41) & 1 ? 1 : -1;
     const pts = [];

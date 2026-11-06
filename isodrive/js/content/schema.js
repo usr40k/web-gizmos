@@ -6,8 +6,8 @@
 export const SLOTS = ['engine', 'tires', 'tank', 'body'];
 export const STATS = ['accel', 'topSpeed', 'grip', 'offroad', 'fuelCap', 'efficiency'];
 export const SHAPES = ['tree', 'pine', 'cactus', 'rock', 'crystal', 'mushroom', 'box'];
-export const KINDS = ['gas_station', 'shop', 'race_pad', 'dealer', 'decor'];
-export const SERVICES = ['gas_station', 'shop', 'race_pad', 'dealer'];       // building kinds a settlement can guarantee
+export const KINDS = ['gas_station', 'shop', 'race_pad', 'dealer', 'depot', 'decor'];
+export const SERVICES = ['gas_station', 'shop', 'race_pad', 'dealer', 'depot'];       // building kinds a settlement can guarantee
 
 const ID = { type: 'string', required: true, pattern: '^[a-z0-9_]+$', max: 40,
   doc: 'Unique lowercase id: letters a-z, digits, underscore. Never reuse an id from another pack.' };
@@ -95,7 +95,7 @@ export const SCHEMA = {
     fields: {
       id: ID,
       name: NAME(),
-      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | dealer (sells vehicles) | decor (decor = a house/tower that does nothing, used to fill towns)' },
+      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | dealer (sells vehicles) | depot (job board for hauling) | decor (decor = a house/tower that does nothing, used to fill towns)' },
       color: { type: 'color', required: true, doc: 'Wall color.' },
       roof: { type: 'color', optional: true, doc: 'Roof color (defaults to a lighter wall color).' },
       accent: color('#ffd24a', 'Sign and trim color.'),
@@ -192,6 +192,23 @@ export const SCHEMA = {
       load: { type: 'number', min: 0, max: 3, default: 0.5, doc: 'How heavy. Slows acceleration/top speed and raises fuel use (0.3 light, 1 loaded semi trailer).' },
       color: { type: 'color', default: '#d8d8dc' },
       accent: { type: 'color', default: '#3a6ad0' },
+    },
+  },
+
+  job: {
+    plural: 'jobs',
+    doc: 'A haul offered at depots. The player drives to a drop zone down the same highway. rate = cash per tile of distance (multiplied by 1 + trailer load). needs say what the player must be pulling.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Gravel run".'),
+      desc: { type: 'string', max: 80, optional: true },
+      rate: { type: 'number', min: 0.05, max: 5, default: 0.35, doc: 'Cash per tile.' },
+      minDist: { type: 'int', min: 100, max: 6000, default: 500, doc: 'Shortest haul in tiles (600 tiles is about a minute).' },
+      maxDist: { type: 'int', min: 100, max: 8000, default: 2000 },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How often it is offered.' },
+      coupling: { type: 'enum', values: ['any', 'ball', 'fifth', 'none'], default: 'any', doc: 'any = any trailer, ball/fifth = that hitch type, none = no trailer needed (parcels).' },
+      shape: { type: 'enum', values: ['any', 'open', 'box', 'flatbed', 'tanker'], default: 'any', doc: 'Trailer body needed.' },
+      minLoad: { type: 'number', min: 0, max: 3, default: 0, doc: 'Trailer load needed (a heavy trailer for heavy cargo).' },
     },
   },
 

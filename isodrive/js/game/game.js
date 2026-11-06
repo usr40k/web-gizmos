@@ -3,6 +3,7 @@ import { stepTrailer, trailerPose, hitchOffset, gapOf, canTow } from './trailer.
 import { newCar, stepCar, carStats, trailerPush, fuelBurn, FUEL_BASE_PRICE } from './car.js';
 import { Peers, packBeacon } from '../net/transport.js';
 import { Tutorial } from './tutorial.js';
+import { strHash, rand01 } from '../util/rng.js';
 
 const COIN_VALUE = 10, COIN_R = 1.3, ZONE_R = 2.4;
 
@@ -17,6 +18,7 @@ export class Game {
     this.fuel = profile.fuel === null ? this.stats.fuelCap : Math.min(profile.fuel, this.stats.fuelCap);
     this.race = null; this.near = null; this.coins = []; this.wrecks = []; this.creatures = []; this.flags = {};
     this.tutorial = new Tutorial(this, ui);
+    this.job = profile.job && reg.get('job', profile.job.id) ? { ...profile.job, def: reg.get('job', profile.job.id) } : null;     // active haul
     this.lastBiome = null; this.beaconT = 0; this.saveT = 0; this.dirty = false; this.strandedT = 0; this.speedMax = 0;
     transport.onBeacon = (id, d) => this.peers.update(id, d, Date.now());
     transport.onChat = (id, name, text) => ui.chat(name, text);
@@ -79,6 +81,7 @@ export class Game {
     // race
     if (this.race) this.updateRace(dt);
     this.tutorial.update(dt);
+    this.updateJob(dt);
 
     // out-of-fuel rescue prompt
     if (this.fuel <= 0 && Math.abs(car.speed) < 0.6) { this.strandedT += dt; if (this.strandedT > 2) this.ui.prompt({ text: `Out of fuel! Press T to call a tow ($${this.towCost()})`, action: () => this.tow() }); }
@@ -95,12 +98,12 @@ export class Game {
     this.saveT += dt;
     if (this.saveT > 12 && this.dirty) this.save();
 
-    this.ui.hud({ cash: this.profile.cash, fuel: this.fuel, cap: this.stats.fuelCap, speed: Math.abs(car.speed), top: this.stats.topSpeed, road: car.onRoad, peers: this.ghosts.length, race: this.race, t: this.t });
+    this.ui.hud({ cash: this.profile.cash, fuel: this.fuel, cap: this.stats.fuelCap, speed: Math.abs(car.speed), top: this.stats.topSpeed, road: car.onRoad, peers: this.ghosts.length, race: this.race, job: this.jobText(), t: this.t });
   }
 
   save() {
     this.saveT = 0; this.dirty = false;
-    this.profile.fuel = this.fuel; this.profile.pos = { x: +this.car.x.toFixed(1), y: +this.car.y.toFixed(1), h: +this.car.h.toFixed(2) };
+    this.syncJob(); this.profile.fuel = this.fuel; this.profile.pos = { x: +this.car.x.toFixed(1), y: +this.car.y.toFixed(1), h: +this.car.h.toFixed(2) };
     this.profile.rev++;
     this.transport.saveProfile(this.profile.toJSON());
   }
@@ -119,6 +122,7 @@ export class Game {
       return { text: `[E] Refuel ${need.toFixed(0)}L - $${cost}  (${d.name})`, action: () => this.refuel(b) };
     }
     if (d.kind === 'shop') return { text: `[E] Browse ${d.name}`, action: () => { this.flags.shop = true; this.ui.openShop(b, this); } };
+    if (d.kind === 'depot') return { text: this.job ? `${d.name}: finish your current job first` : `[E] Job board (${d.name})`, action: this.job ? null : () => this.ui.openJobs(this, b) };
     if (d.kind === 'dealer') return { text: `[E] Browse ${d.name}`, action: () => this.ui.openDealer(this) };
     if (d.kind === 'race_pad') {
       const r = this.reg.get('race', d.race);
@@ -127,6 +131,60 @@ export class Game {
     return null;
   }
   interact() { if (this.near) { const p = this.promptFor(this.near); if (p && p.action) p.action(); } else if (this.fuel <= 0 && this.strandedT > 2) this.tow(); }
+
+  // ---- haul jobs. Offers are deterministic per depot and 10-minute window, so every player sees the same board.
+  jobOffers(b) {
+    const defs = this.reg.list('job'); if (!defs.length) return [];
+    const win = Math.floor(this.now / 600000), sw = defs.reduce((a, j) => a + j.weight, 0), out = [];
+    for (let i = 0; i < 3; i++) {
+      const salt = strHash(b.key + ':' + win + ':' + i);
+      let r = rand01(this.world.seed, salt, 1, 1) * sw, def = defs[0];
+      for (const j of defs) { r -= j.weight; if (r <= 0) { def = j; break; } }
+      const dist = Math.round(def.minDist + (def.maxDist - def.minDist) * rand01(this.world.seed, salt, 2, 1));
+      const dir = rand01(this.world.seed, salt, 3, 1) < 0.5 ? -1 : 1, to = this.world.jobDestination(b, dist, dir);
+      out.push({ id: def.id, def, dist, tx: to.x, ty: to.y, pay: 0 });
+    }
+    return out;
+  }
+  jobBlock(def) {                         // '' = the player can take it right now
+    const t = this.stats.trailer;
+    if (def.coupling === 'none') return '';
+    if (!t) return 'needs a trailer';
+    if (def.coupling !== 'any' && (t.coupling || 'ball') !== def.coupling) return def.coupling === 'fifth' ? 'needs a fifth-wheel trailer' : 'needs a ball-hitch trailer';
+    if (def.shape !== 'any' && t.shape !== def.shape) return `needs a ${def.shape} trailer`;
+    if (t.load < def.minLoad - 1e-6) return 'trailer too light';
+    return '';
+  }
+  jobPay(def, dist) { return Math.round(dist * def.rate * (1 + (def.coupling === 'none' || !this.stats.trailer ? 0 : this.stats.trailer.load)) / 5) * 5; }
+  acceptJob(o) {
+    if (this.job) return 'Finish your current job first';
+    const why = this.jobBlock(o.def); if (why) return why;
+    const limit = Math.round(o.dist / (this.stats.topSpeed * 0.55) * 1.3 + 20);
+    this.job = { id: o.id, def: o.def, tx: o.tx, ty: o.ty, dist: o.dist, pay: this.jobPay(o.def, o.dist), left: limit, limit };
+    this.syncJob(); this.markDirty(); this.save();
+    this.ui.banner('Job: ' + o.def.name, 2000);
+    return '';
+  }
+  syncJob() { this.profile.job = this.job ? { id: this.job.id, tx: +this.job.tx.toFixed(1), ty: +this.job.ty.toFixed(1), dist: this.job.dist, pay: this.job.pay, left: Math.round(this.job.left), limit: this.job.limit } : null; }
+  abandonJob() { this.job = null; this.syncJob(); this.markDirty(); this.ui.toast('Job abandoned', 1500); }
+  jobText() {
+    const j = this.job; if (!j) return null;
+    const d = Math.hypot(j.tx - this.car.x, j.ty - this.car.y);
+    return `${j.def.name}  ${Math.round(d)} tiles  ${Math.max(0, Math.ceil(j.left))}s  $${j.pay}`;
+  }
+  updateJob(dt) {
+    const j = this.job; if (!j) return;
+    j.left -= dt;
+    if (Math.hypot(j.tx - this.car.x, j.ty - this.car.y) < 5) {
+      const why = this.jobBlock(j.def);
+      if (why) { if ((this.jobWarn = (this.jobWarn || 0) - dt) < 0) { this.ui.toast('Cargo missing: ' + why, 1800); this.jobWarn = 4; } return; }
+      const pay = j.left >= 0 ? j.pay : Math.round(j.pay / 2);
+      this.profile.cash += pay; this.profile.stats.jobs = (this.profile.stats.jobs || 0) + 1;
+      this.ui.banner(`${j.def.name} delivered +$${pay}${j.left < 0 ? ' (late, half pay)' : ''}`, 3000);
+      this.job = null; this.syncJob(); this.markDirty(); this.save(); return;
+    }
+    if ((this.jobSave = (this.jobSave || 0) + dt) > 10) { this.jobSave = 0; this.syncJob(); this.markDirty(); }
+  }
 
   talk(c) {
     const d = c.def, k = 0.3 + 0.7 * c.loot, cash = Math.round(d.cash * k), litres = Math.round(d.fuel * k * 10) / 10;

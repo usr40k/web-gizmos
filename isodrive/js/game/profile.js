@@ -27,6 +27,8 @@ export class Profile {
       const kind = k[0] === 't' ? 'trailer' : 'vehicle';
       if (/^[vt]:/.test(k) && reg.get(kind, k.slice(2)) && validDecal(d, kind) && !isBlank(d)) this.decals[k] = d;
     }
+    const jb = data.job;
+    this.job = jb && reg.get('job', jb.id) && [jb.tx, jb.ty, jb.dist, jb.pay, jb.left, jb.limit].every(Number.isFinite) ? { ...jb } : null;     // active haul
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -45,7 +47,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], job: this.job, decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {

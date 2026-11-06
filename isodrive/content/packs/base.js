@@ -12,7 +12,7 @@ export default {
       palette: { ground: ['#5fa34a', '#58994a', '#67ad52', '#4f9145'], road: '#4b4b55', roadLine: '#e8e4b8', speck: '#86d26e' },
       terrain: { grip: 0.75, drag: 1.0 },
       props: [{ prop: 'oak', density: 0.05 }, { prop: 'pine_green', density: 0.025 }, { prop: 'boulder_grey', density: 0.01 }, { prop: 'giant_boulder', density: 0.0015 }],
-      roadside: [{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.25 }, { building: 'race_pad_std', chance: 0.1 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.25 }, { building: 'race_pad_std', chance: 0.1 }],
       homes: [{ building: 'house_std', chance: 1 }, { building: 'house_red', chance: 0.6 }],
       shopStock: ['engine_v6', 'tires_sport', 'tank_long', 'body_aero'],
       fuelPrice: 1.0, coins: 0.3,
@@ -22,7 +22,7 @@ export default {
       palette: { ground: ['#e9bf72', '#e2b565', '#edc57d', '#dcab5c'], road: '#5a4a40', roadLine: '#f6e7a0', speck: '#f7d88f' },
       terrain: { grip: 0.55, drag: 1.6 },
       props: [{ prop: 'cactus_green', density: 0.025 }, { prop: 'sandrock', density: 0.02 }, { prop: 'giant_sandrock', density: 0.002 }],
-      roadside: [{ building: 'gas_adobe', chance: 0.3 }, { building: 'shop_adobe', chance: 0.2 }, { building: 'race_pad_std', chance: 0.1 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_adobe', chance: 0.3 }, { building: 'shop_adobe', chance: 0.2 }, { building: 'race_pad_std', chance: 0.1 }],
       homes: [{ building: 'house_adobe', chance: 1 }],
       creatures: 0.06,
       shopStock: ['engine_turbo', 'tires_offroad', 'tank_long'],
@@ -33,7 +33,7 @@ export default {
       palette: { ground: ['#1a1233', '#20163d', '#161029', '#241946'], road: '#0b0b14', roadLine: '#00ffff', speck: '#6a3cff' },
       terrain: { grip: 0.9, drag: 0.9 },
       props: [{ prop: 'crystal_magenta', density: 0.02 }, { prop: 'crystal_cyan', density: 0.02 }, { prop: 'glowshroom', density: 0.015 }, { prop: 'pylon', density: 0.006 }],
-      roadside: [{ building: 'gas_neon', chance: 0.3 }, { building: 'shop_neon', chance: 0.3 }, { building: 'race_pad_neon', chance: 0.12 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_neon', chance: 0.3 }, { building: 'shop_neon', chance: 0.3 }, { building: 'race_pad_neon', chance: 0.12 }],
       homes: [{ building: 'house_neon', chance: 1 }],
       creatures: 0.12,
       shopStock: ['engine_turbo', 'tires_sport', 'body_aero'],
@@ -45,7 +45,7 @@ export default {
       terrain: { grip: 0.35, drag: 0.9 },          // slippery!
       roadSurface: { grip: 0.65, drag: 0.35 },     // icy roads
       props: [{ prop: 'pine_snow', density: 0.04 }, { prop: 'ice_rock', density: 0.015 }, { prop: 'giant_ice_rock', density: 0.0015 }],
-      roadside: [{ building: 'gas_frost', chance: 0.3 }, { building: 'shop_frost', chance: 0.3 }, { building: 'race_pad_std', chance: 0.08 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_frost', chance: 0.3 }, { building: 'shop_frost', chance: 0.3 }, { building: 'race_pad_std', chance: 0.08 }],
       homes: [{ building: 'house_frost', chance: 1 }],
       shopStock: ['tires_studded', 'tank_long', 'engine_v6'],
       fuelPrice: 1.2, coins: 0.25,
@@ -55,7 +55,7 @@ export default {
       palette: { ground: ['#3a2b2b', '#332626', '#41302e', '#2d2222'], road: '#1a1a1d', roadLine: '#ff7a2a', speck: '#ff5a1f' },
       terrain: { grip: 0.6, drag: 1.3 },
       props: [{ prop: 'dead_tree', density: 0.03 }, { prop: 'ash_rock', density: 0.03 }, { prop: 'obsidian', density: 0.012 }, { prop: 'giant_ash_rock', density: 0.0015 }],
-      roadside: [{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.2 }, { building: 'race_pad_neon', chance: 0.1 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.2 }, { building: 'race_pad_neon', chance: 0.1 }],
       homes: [{ building: 'house_ash', chance: 1 }],
       creatures: 0.08,
       shopStock: ['engine_turbo', 'tires_offroad', 'body_aero'],
@@ -116,6 +116,7 @@ export default {
     { id: 'shop_neon', name: 'Chrome Lab', kind: 'shop', color: '#2b1450', accent: '#ff2bd6', width: 6, depth: 4, height: 15, sign: 'LAB' },
     { id: 'shop_frost', name: 'Ice Garage', kind: 'shop', color: '#9fc4e0', roof: '#ffffff', accent: '#2a5a8a', width: 6, depth: 4, height: 14, sign: 'PARTS' },
     { id: 'dealership', name: 'Auto Dealer', kind: 'dealer', color: '#dfe6ee', roof: '#3a5a8a', accent: '#4a8af0', width: 9, depth: 6, height: 11, sign: 'CARS' },
+    { id: 'depot_std', name: 'Freight Depot', kind: 'depot', color: '#c8a050', roof: '#8a6a30', accent: '#ffb020', width: 8, depth: 6, height: 9, sign: 'JOBS' },
     // decor: filler buildings for towns (kind 'decor' = no interaction)
     { id: 'house_std', name: 'House', kind: 'decor', color: '#e8dcc0', roof: '#a8483a', accent: '#6a8cd9', width: 4, depth: 4, height: 9 },
     { id: 'house_red', name: 'Brick House', kind: 'decor', color: '#b4574a', roof: '#4a3a3a', accent: '#ffe9a8', width: 5, depth: 4, height: 9 },
@@ -133,8 +134,8 @@ export default {
   settlements: [
     { id: 'roadside_outpost', name: 'Outpost', size: 'outpost', radius: 30, block: 30, density: 0.4, weight: 5, services: ['gas_station'] },
     { id: 'village', name: 'Village', size: 'village', radius: 75, block: 30, density: 0.6, weight: 3, starter: true, services: ['gas_station', 'shop', 'race_pad'] },
-    { id: 'town', name: 'Town', size: 'town', radius: 150, block: 32, density: 0.7, weight: 1.5, services: ['gas_station', 'shop', 'race_pad', 'dealer'], buildings: [{ building: 'warehouse', chance: 0.25 }] },
-    { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'dealer', 'race_pad'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
+    { id: 'town', name: 'Town', size: 'town', radius: 150, block: 32, density: 0.7, weight: 1.5, services: ['gas_station', 'shop', 'race_pad', 'depot', 'dealer'], buildings: [{ building: 'warehouse', chance: 0.25 }] },
+    { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'depot', 'dealer'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
   ],
 
   vehicles: [
@@ -157,6 +158,14 @@ export default {
     { id: 'semi_box', name: 'Semi Box Trailer', shape: 'box', coupling: 'fifth', price: 5000, desc: '53-foot style dry van.', length: 5.0, width: 1.05, height: 9, load: 1.0 },
     { id: 'semi_flatbed', name: 'Semi Flatbed', shape: 'flatbed', coupling: 'fifth', price: 4500, desc: 'Open deck for anything.', length: 5.0, width: 1.05, height: 5, load: 0.9, color: '#6c7480' },
     { id: 'semi_tanker', name: 'Semi Tanker', shape: 'tanker', coupling: 'fifth', price: 7000, desc: 'Heavy liquid hauler.', length: 4.6, width: 1.0, height: 8, load: 1.2, color: '#c8ccd2', accent: '#d0a030' },
+  ],
+
+  jobs: [
+    { id: 'parcel', name: 'Parcel run', desc: 'A few boxes in the back. Any vehicle.', rate: 0.22, minDist: 400, maxDist: 1600, weight: 3, coupling: 'none' },
+    { id: 'gravel', name: 'Gravel haul', desc: 'Any trailer will do.', rate: 0.34, minDist: 600, maxDist: 2200, weight: 3, coupling: 'any', minLoad: 0.25 },
+    { id: 'freight', name: 'Dry freight', desc: 'A semi box trailer, fully loaded.', rate: 0.5, minDist: 900, maxDist: 3200, weight: 2, coupling: 'fifth', shape: 'box', minLoad: 0.9 },
+    { id: 'steel', name: 'Steel beams', desc: 'Needs a flatbed.', rate: 0.55, minDist: 900, maxDist: 3000, weight: 1.5, coupling: 'any', shape: 'flatbed', minLoad: 0.8 },
+    { id: 'fuel_run', name: 'Fuel delivery', desc: 'Tanker only. Pays best.', rate: 0.8, minDist: 800, maxDist: 3200, weight: 1, coupling: 'fifth', shape: 'tanker', minLoad: 1.0 },
   ],
 
   creatures: [

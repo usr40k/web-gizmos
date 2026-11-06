@@ -79,7 +79,8 @@ export class UI {
     $('speed').textContent = Math.round(s.speed * 8) + ' km/h';
     $('peers').textContent = s.peers ? s.peers + ' other' + (s.peers > 1 ? 's' : '') + ' nearby' : '';
     const r = $('race');
-    if (s.race) { r.classList.add('show'); r.textContent = `${s.race.def.name}  ${s.race.time.toFixed(1)}s  ${s.race.idx}/${s.race.points.length}  (par ${s.race.def.parTime}s)`; }
+    if (!s.race && s.job) { r.classList.add('show'); r.textContent = s.job; }
+    else if (s.race) { r.classList.add('show'); r.textContent = `${s.race.def.name}  ${s.race.time.toFixed(1)}s  ${s.race.idx}/${s.race.points.length}  (par ${s.race.def.parTime}s)`; }
     else r.classList.remove('show');
   }
   contentProblems(reg) {
@@ -162,6 +163,25 @@ export class UI {
         el('button', { class: 'btn', text: 'Done', onclick: () => this.closeModal() })));
     this.modal('Decals', body, { wide: true });
     paint();
+  }
+  openJobs(game, b) {
+    this.game = game;
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const t = game.stats.trailer;
+      body.append(el('small', { text: `Hauling: ${t ? t.name : 'no trailer'}. The drop zone is further down this highway. Late deliveries pay half.` }));
+      for (const o of game.jobOffers(b)) {
+        const why = game.jobBlock(o.def), pay = game.jobPay(o.def, o.dist);
+        const chips = el('div', { class: 'chips' }, ...[`${o.dist} tiles`, `about ${Math.round(o.dist / 600 * 10) / 10} min`, `$${pay}`].map((x) => el('span', { class: 'chip good', text: x })));
+        if (why) chips.append(el('span', { class: 'chip bad', text: why }));
+        body.append(el('div', { class: 'part' }, el('div', { class: 'pinfo' }, el('b', { text: o.def.name }), o.def.desc ? el('small', { text: o.def.desc }) : null, chips),
+          el('button', { class: 'btn buy', text: 'Accept', disabled: !!why || !!game.job, onclick: () => { const e = game.acceptJob(o); if (e) this.toast(e, 1500); else this.closeModal(); } })));
+      }
+      if (game.job) body.append(el('button', { class: 'btn', text: 'Abandon current job', onclick: () => { game.abandonJob(); render(); } }));
+    };
+    render();
+    this.modal(b.def.name + ' - Job board', body);
   }
   openDealer(game) { this.game = game; this.modal('Auto Dealer', el('div', {}, this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true), this.trailersBlock(game, game.reg.list('trailer').slice().sort((a, b) => a.price - b.price), true))); }
   trailersBlock(game, list, dealer) {
