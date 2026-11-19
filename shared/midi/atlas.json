@@ -1,7 +1,7 @@
 [
   {
-    "name": "Zelda's Lullaby.mid",
-    "size": 1773,
+    "name": "RickRoll.mid",
+    "size": 67477,
     "extension": "mid"
   },
   {
@@ -15,8 +15,13 @@
     "extension": "mid"
   },
   {
-    "name": "tetris.mid",
-    "size": 16647,
+    "name": "atlas.json",
+    "size": 578,
+    "extension": "json"
+  },
+  {
+    "name": "Zelda's Lullaby.mid",
+    "size": 1773,
     "extension": "mid"
   },
   {
@@ -25,13 +30,8 @@
     "extension": "mid"
   },
   {
-    "name": "RickRoll.mid",
-    "size": 67477,
+    "name": "tetris.mid",
+    "size": 16647,
     "extension": "mid"
-  },
-  {
-    "name": "atlas.json",
-    "size": 578,
-    "extension": "json"
   }
 ]

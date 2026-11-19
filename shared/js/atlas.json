@@ -1,22 +1,7 @@
 [
   {
-    "name": "midiplayer.min.js",
-    "size": 14924,
-    "extension": "js"
-  },
-  {
-    "name": "marked.min.js",
-    "size": 39903,
-    "extension": "js"
-  },
-  {
-    "name": "mqtt.min.js",
-    "size": 368606,
-    "extension": "js"
-  },
-  {
-    "name": "tone.min.js",
-    "size": 349169,
+    "name": "three.min.js",
+    "size": 603445,
     "extension": "js"
   },
   {
@@ -25,23 +10,8 @@
     "extension": "js"
   },
   {
-    "name": "puter-v2.min.js",
-    "size": 241590,
-    "extension": "js"
-  },
-  {
-    "name": "ua.min.js",
-    "size": 533,
-    "extension": "js"
-  },
-  {
     "name": "ffmpeg.min.js",
     "size": 22471,
-    "extension": "js"
-  },
-  {
-    "name": "omggif.js",
-    "size": 31970,
     "extension": "js"
   },
   {
@@ -50,8 +20,13 @@
     "extension": "js"
   },
   {
-    "name": "gifenc.js",
-    "size": 22764,
+    "name": "tone.min.js",
+    "size": 349169,
+    "extension": "js"
+  },
+  {
+    "name": "puter-v2.min.js",
+    "size": 241590,
     "extension": "js"
   },
   {
@@ -60,18 +35,43 @@
     "extension": "js"
   },
   {
-    "name": "three.min.js",
-    "size": 603445,
+    "name": "midiplayer.min.js",
+    "size": 14924,
     "extension": "js"
-  },
-  {
-    "name": "atlas.json",
-    "size": 1102,
-    "extension": "json"
   },
   {
     "name": "header.js",
     "size": 352,
+    "extension": "js"
+  },
+  {
+    "name": "gifenc.js",
+    "size": 22764,
+    "extension": "js"
+  },
+  {
+    "name": "mqtt.min.js",
+    "size": 368606,
+    "extension": "js"
+  },
+  {
+    "name": "ua.min.js",
+    "size": 533,
+    "extension": "js"
+  },
+  {
+    "name": "omggif.js",
+    "size": 31970,
+    "extension": "js"
+  },
+  {
+    "name": "atlas.json",
+    "size": 1181,
+    "extension": "json"
+  },
+  {
+    "name": "marked.min.js",
+    "size": 39903,
     "extension": "js"
   }
 ]
