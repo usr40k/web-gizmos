@@ -70,6 +70,9 @@ async function main() {
     menu: () => (ui.modalOpen ? ui.closeModal() : ui.openMenu()),
     chat: () => { if (!ui.modalOpen) ui.openChat(); },
     tow: () => game && !ui.modalOpen && game.tow(),
+    vehicle: () => game && !ui.modalOpen && game.toggleVehicle(),
+    hitch: () => game && !ui.modalOpen && game.toggleTrailer(),
+    zoom: (d) => { if (!ui.modalOpen) { const z = renderer.setZoom(renderer.zoom + d); ui.toast('Zoom ' + Math.round(z * 100) + '%', 700); } },
     garage: () => game && (ui.modalOpen ? ui.closeModal() : ui.openGarage(game)),
   });
   ui.onModal = (open) => { input.enabled = !open; };
@@ -77,7 +80,7 @@ async function main() {
   ui.game = game;
   document.getElementById('hudroot').classList.add('show');
   ui.status(transport.kind === 'matrix' ? `Matrix: ${info.userId}` : `Local room "${choice.room}"`, true);
-  if (profile.stats.races + profile.stats.coins === 0 && !params.has('autostart')) ui.controls();
+  if (params.has('tutorial') || (!profile.tut && profile.stats.races + profile.stats.coins === 0 && !params.has('autostart'))) game.tutorial.start();
 
   const save = () => game.save();
   addEventListener('beforeunload', save);
@@ -87,10 +90,11 @@ async function main() {
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     game.update(dt, input.read());
-    renderer.draw({ car: game.car, carColor: profile.color, ghosts: game.ghosts || [], race: game.race, near: game.near, coins: game.coins, camX: game.car.x, camY: game.car.y, t: game.t });
+    renderer.draw({ car: game.car, carColor: profile.color, veh: game.stats.veh, trailer: game.stats.trailer, ghosts: game.ghosts || [], wrecks: game.wrecks, creatures: game.creatures, parked: profile.parked, guide: game.tutorial.guide, job: game.job, decals: game.decalsNow(), race: game.race, near: game.near, coins: game.coins, camX: game.focus.x, camY: game.focus.y, walker: game.onFoot ? game.walker : null, char: game.charDef(), t: game.t });
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  const vb = document.getElementById('vbtn'); if (vb) vb.addEventListener('click', () => !ui.modalOpen && game.toggleVehicle());
   window.__iso = { game, world, reg, renderer, transport, ui, input };   // handy for the console and tests
 }
 

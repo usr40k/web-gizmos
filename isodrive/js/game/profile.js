@@ -1,6 +1,8 @@
 // Player profile: cash, fuel, garage and records. Serialised as plain JSON so it can be stored in
 // localStorage (offline), a Matrix account-data event (persistent, per account) or anything else.
 import { SLOTS } from '../content/schema.js';
+import { canTow } from './trailer.js';
+import { validDecal, isBlank } from './decal.js';
 
 export const CAR_COLORS = ['#e8453c', '#f28c28', '#f5d742', '#4fc860', '#2fb7d4', '#4a6cf0', '#a85cf0', '#f060b0', '#e8e8e8', '#33333a'];
 
@@ -12,6 +14,28 @@ export class Profile {
     this.color = typeof data.color === 'string' && /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : CAR_COLORS[0];
     this.fuel = Number.isFinite(data.fuel) ? data.fuel : null;       // null -> full tank
     this.owned = new Set(Array.isArray(data.owned) ? data.owned : []);
+    const vs = reg.list('vehicle').slice().sort((a, b) => a.price - b.price);
+    this.garage = new Set((Array.isArray(data.garage) ? data.garage : []).filter((id) => vs.some((v) => v.id === id)));
+    if (vs[0]) this.garage.add(vs[0].id);
+    this.vehicle = this.garage.has(data.vehicle) ? data.vehicle : (vs[0] && vs[0].id);
+    this.trailers = new Set((Array.isArray(data.trailers) ? data.trailers : []).filter((id) => reg.get('trailer', id)));
+    this.trailer = this.trailers.has(data.trailer) && !canTow(reg.get('vehicle', this.vehicle), reg.get('trailer', data.trailer)) ? data.trailer : null;
+    const pk = data.parked;
+    this.parked = pk && reg.get('trailer', pk.id) && [pk.x, pk.y, pk.th].every(Number.isFinite) ? { id: pk.id, x: pk.x, y: pk.y, th: pk.th } : null;     // trailer left standing in the world
+    this.decals = {};                                               // "v:<id>" / "t:<id>" -> decal string
+    for (const [k, d] of Object.entries(data.decals || {})) {
+      const kind = k[0] === 't' ? 'trailer' : 'vehicle';
+      if (/^[vt]:/.test(k) && reg.get(kind, k.slice(2)) && validDecal(d, kind) && !isBlank(d)) this.decals[k] = d;
+    }
+    const jb = data.job;
+    this.job = jb && reg.get('job', jb.id) && [jb.tx, jb.ty, jb.dist, jb.pay, jb.left, jb.limit].every(Number.isFinite) ? { ...jb } : null;     // active haul
+    const cs = reg.list('character').slice().sort((a, b) => a.price - b.price);
+    this.characters = new Set((Array.isArray(data.characters) ? data.characters : []).filter((id) => cs.some((c) => c.id === id)));
+    if (cs[0]) this.characters.add(cs[0].id);
+    for (const c of cs) if (c.price === 0) this.characters.add(c.id);
+    this.character = this.characters.has(data.character) ? data.character : (cs[0] && cs[0].id);
+    const wk = data.walk;
+    this.walk = wk && [wk.x, wk.y, wk.h].every(Number.isFinite) ? { x: wk.x, y: wk.y, h: wk.h } : null;     // set while the player is out of the vehicle
     this.equipped = {};
     this.best = data.best && typeof data.best === 'object' ? { ...data.best } : {};   // raceId -> seconds
     this.stats = { coins: 0, races: 0, km: 0, ...(data.stats || {}) };
@@ -30,7 +54,7 @@ export class Profile {
 
   toJSON() {
     return { v: 1, rev: this.rev, name: this.name, color: this.color, cash: Math.round(this.cash), fuel: this.fuel === null ? null : +this.fuel.toFixed(2),
-      owned: [...this.owned], equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
+      owned: [...this.owned], garage: [...this.garage], vehicle: this.vehicle, trailers: [...this.trailers], characters: [...this.characters], character: this.character, walk: this.walk, job: this.job, decals: this.decals, trailer: this.trailer, parked: this.parked ? { id: this.parked.id, x: +this.parked.x.toFixed(1), y: +this.parked.y.toFixed(1), th: +this.parked.th.toFixed(2) } : null, equipped: this.equipped, best: this.best, stats: this.stats, pos: this.pos, tut: this.tut };
   }
 
   buy(partId) {
@@ -40,6 +64,41 @@ export class Profile {
     if (this.cash < p.price) return 'Not enough cash';
     this.cash -= p.price; this.owned.add(partId); this.equipped[p.slot] = partId;
     return null;
+  }
+  buyVehicle(id) {
+    const v = this.reg.get('vehicle', id);
+    if (!v) return 'Unknown vehicle';
+    if (this.garage.has(id)) return 'Already owned';
+    if (this.cash < v.price) return 'Not enough cash';
+    this.cash -= v.price; this.garage.add(id); this.vehicle = id; return null;
+  }
+  selectVehicle(id) {
+    if (!this.garage.has(id)) return false;
+    this.vehicle = id;
+    if (this.trailer && canTow(this.reg.get('vehicle', id), this.reg.get('trailer', this.trailer))) this.trailer = null;   // cannot pull it: unhitch
+    return true;
+  }
+  buyCharacter(id) {
+    const c = this.reg.get('character', id);
+    if (!c) return 'Unknown character';
+    if (this.characters.has(id)) return 'Already owned';
+    if (this.cash < c.price) return 'Not enough cash';
+    this.cash -= c.price; this.characters.add(id); this.character = id; return null;
+  }
+  selectCharacter(id) { if (!this.characters.has(id)) return false; this.character = id; return true; }
+  buyTrailer(id) {
+    const t = this.reg.get('trailer', id);
+    if (!t) return 'Unknown trailer';
+    if (this.trailers.has(id)) return 'Already owned';
+    if (this.cash < t.price) return 'Not enough cash';
+    this.cash -= t.price; this.trailers.add(id); return null;
+  }
+  hitch(id) {                                    // id or null; returns an error string or ''
+    if (id === null) { this.trailer = null; return ''; }
+    if (!this.trailers.has(id)) return 'Not owned';
+    const why = canTow(this.reg.get('vehicle', this.vehicle), this.reg.get('trailer', id));
+    if (why) return why;
+    this.trailer = id; return '';
   }
   equip(partId) {
     const p = this.reg.get('part', partId);

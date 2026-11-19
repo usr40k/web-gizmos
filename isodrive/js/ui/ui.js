@@ -1,6 +1,8 @@
 // All DOM UI. Rule: anything that can come from another player or a content pack goes in via textContent only.
 import { CAR_COLORS } from '../game/profile.js';
 import { SLOTS } from '../content/schema.js';
+import { canTow } from '../game/trailer.js';
+import { PAL, ROWS, colsFor, emptyDecal, validDecal } from '../game/decal.js';
 
 const $ = (id) => document.getElementById(id);
 export function el(tag, props = {}, ...kids) {
@@ -40,6 +42,15 @@ export class UI {
     while ($('toasts').children.length > 4) $('toasts').firstChild.remove();
     setTimeout(() => t.remove(), ms);
   }
+  // tutorial panel: p = { text, n, total, last } or null to hide
+  tutorial(p) {
+    const t = $('tut');
+    if (!p) { t.classList.remove('show'); return; }
+    $('tuttext').textContent = p.text; $('tutstep').textContent = `Tutorial ${p.n}/${p.total}`;
+    const sk = $('tutskip'); sk.textContent = p.last ? 'Done' : 'Skip tutorial';
+    sk.onclick = () => (this.game ? this.game.tutorial.skip() : null);
+    t.classList.add('show');
+  }
   pickup(text) { this.toast(text, 700); }
   banner(text, ms = 2200) {
     const b = $('banner'); b.textContent = text; b.classList.add('show');
@@ -68,7 +79,8 @@ export class UI {
     $('speed').textContent = Math.round(s.speed * 8) + ' km/h';
     $('peers').textContent = s.peers ? s.peers + ' other' + (s.peers > 1 ? 's' : '') + ' nearby' : '';
     const r = $('race');
-    if (s.race) { r.classList.add('show'); r.textContent = `${s.race.def.name}  ${s.race.time.toFixed(1)}s  ${s.race.idx}/${s.race.points.length}  (par ${s.race.def.parTime}s)`; }
+    if (!s.race && s.job) { r.classList.add('show'); r.textContent = s.job; }
+    else if (s.race) { r.classList.add('show'); r.textContent = `${s.race.def.name}  ${s.race.time.toFixed(1)}s  ${s.race.idx}/${s.race.points.length}  (par ${s.race.def.parTime}s)`; }
     else r.classList.remove('show');
   }
   contentProblems(reg) {
@@ -101,18 +113,154 @@ export class UI {
 
   // ---------------------------------------------------------------- shop / garage
   openShop(b, game) { this.game = game; this.partsModal(b.def.name, game, b.biome.shopStock.map((id) => game.reg.get('part', id)).filter(Boolean), true); }
-  openGarage(game) {
-    this.game = game;
-    const owned = [...game.profile.owned].map((id) => game.reg.get('part', id)).filter(Boolean);
-    this.partsModal('Garage', game, owned, false);
+  // Pixel decal editor: 16x16 for the vehicle, 32x16 for a hitched trailer. Painted on the roof, nose to the right.
+  openDecals(game, which) {
+    const P = game.profile, kind = which === 'trailer' && P.trailer ? 'trailer' : 'vehicle';
+    const key = kind === 'trailer' ? 't:' + P.trailer : 'v:' + P.vehicle, cols = colsFor(kind);
+    const def = game.reg.get(kind, kind === 'trailer' ? P.trailer : P.vehicle);
+    let data = validDecal(P.decals[key], kind) ? P.decals[key] : emptyDecal(kind), brush = 3, down = false;
+    const cell = Math.max(8, Math.min(20, Math.floor((Math.min(innerWidth, 640) - 60) / cols)));
+    const cv = el('canvas', { class: 'decalcv', width: cols * cell, height: ROWS * cell });
+    cv.style.touchAction = 'none';
+    const g = cv.getContext('2d');
+    const bg = kind === 'trailer' ? def.color : P.color;
+    const paint = () => {
+      g.fillStyle = bg; g.fillRect(0, 0, cv.width, cv.height);
+      for (let r = 0; r < ROWS; r++) for (let u = 0; u < cols; u++) { const i = parseInt(data[r * cols + u], 16); if (i) { g.fillStyle = PAL[i]; g.fillRect(u * cell, r * cell, cell, cell); } }
+      g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 1;
+      for (let u = 1; u < cols; u++) { g.beginPath(); g.moveTo(u * cell + .5, 0); g.lineTo(u * cell + .5, cv.height); g.stroke(); }
+      for (let r = 1; r < ROWS; r++) { g.beginPath(); g.moveTo(0, r * cell + .5); g.lineTo(cv.width, r * cell + .5); g.stroke(); }
+    };
+    const at = (e) => { const b = cv.getBoundingClientRect(), u = Math.floor((e.clientX - b.left) / b.width * cols), r = Math.floor((e.clientY - b.top) / b.height * ROWS); return u >= 0 && u < cols && r >= 0 && r < ROWS ? r * cols + u : -1; };
+    let last = -1;
+    const setCell = (i) => { if (data[i] !== brush.toString(16)) data = data.slice(0, i) + brush.toString(16) + data.slice(i + 1); };
+    const put = (e) => {                                  // fills the cells between pointer events so fast strokes have no gaps
+      const i = at(e); if (i < 0) return;
+      if (last < 0) setCell(i);
+      else { const x0 = last % cols, y0 = Math.floor(last / cols), x1 = i % cols, y1 = Math.floor(i / cols), n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+        for (let k = 0; k <= n; k++) setCell(Math.round(y0 + (y1 - y0) * k / n) * cols + Math.round(x0 + (x1 - x0) * k / n)); }
+      last = i; paint();
+    };
+    const commit = () => { game.setDecal(key, data); };
+    cv.addEventListener('pointerdown', (e) => { down = true; last = -1; cv.setPointerCapture(e.pointerId); put(e); e.preventDefault(); });
+    cv.addEventListener('pointermove', (e) => { if (down) put(e); });
+    const up = () => { if (down) { down = false; last = -1; commit(); } };
+    cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    const pal = el('div', { class: 'colors' });
+    PAL.forEach((c, i) => {
+      const b = el('button', { class: 'swatch' + (i === brush ? ' sel' : ''), 'aria-label': c ? 'colour ' + c : 'eraser', title: c ? c : 'eraser', style: c ? `background:${c}` : 'background:repeating-conic-gradient(#555 0 25%,#999 0 50%) 0 0/10px 10px' });
+      b.addEventListener('click', () => { brush = i; [...pal.children].forEach((x, j) => x.classList.toggle('sel', j === i)); });
+      pal.append(b);
+    });
+    const body = el('div', { class: 'menu' },
+      el('div', { class: 'row' },
+        el('button', { class: 'btn' + (kind === 'vehicle' ? ' buy' : ''), text: 'Vehicle 16x16', onclick: () => this.openDecals(game, 'vehicle') }),
+        P.trailer ? el('button', { class: 'btn' + (kind === 'trailer' ? ' buy' : ''), text: 'Trailer 32x16', onclick: () => this.openDecals(game, 'trailer') }) : null),
+      el('small', { text: `${def.name}: painted on the roof, the nose is on the right.` }), cv, pal,
+      el('div', { class: 'row' },
+        el('button', { class: 'btn', text: 'Clear', onclick: () => { data = emptyDecal(kind); paint(); commit(); } }),
+        el('button', { class: 'btn', text: 'Flip', onclick: () => { let o = ''; for (let r = 0; r < ROWS; r++) o += [...data.slice(r * cols, r * cols + cols)].reverse().join(''); data = o; paint(); commit(); } }),
+        el('button', { class: 'btn', text: 'Done', onclick: () => this.closeModal() })));
+    this.modal('Decals', body, { wide: true });
+    paint();
   }
-  partsModal(title, game, parts, shop) {
+  openJobs(game, b) {
+    this.game = game;
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const t = game.stats.trailer;
+      body.append(el('small', { text: `Hauling: ${t ? t.name : 'no trailer'}. The drop zone is further down this highway. Late deliveries pay half.` }));
+      for (const o of game.jobOffers(b)) {
+        const why = game.jobBlock(o.def), pay = game.jobPay(o.def, o.dist);
+        const chips = el('div', { class: 'chips' }, ...[`${o.dist} tiles`, `about ${Math.round(o.dist / 600 * 10) / 10} min`, `$${pay}`].map((x) => el('span', { class: 'chip good', text: x })));
+        if (why) chips.append(el('span', { class: 'chip bad', text: why }));
+        body.append(el('div', { class: 'part' }, el('div', { class: 'pinfo' }, el('b', { text: o.def.name }), o.def.desc ? el('small', { text: o.def.desc }) : null, chips),
+          el('button', { class: 'btn buy', text: 'Accept', disabled: !!why || !!game.job, onclick: () => { const e = game.acceptJob(o); if (e) this.toast(e, 1500); else this.closeModal(); } })));
+      }
+      if (game.job) body.append(el('button', { class: 'btn', text: 'Abandon current job', onclick: () => { game.abandonJob(); render(); } }));
+    };
+    render();
+    this.modal(b.def.name + ' - Job board', body);
+  }
+  // wardrobe: the on-foot characters (press V to get out of the vehicle)
+  charactersBlock(game) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile;
+      body.append(el('h3', { text: 'character (V to get out)' }));
+      for (const c of game.reg.list('character').slice().sort((a, b) => a.price - b.price)) {
+        const have = P.characters.has(c.id), cur = P.character === c.id;
+        const chips = el('div', { class: 'chips' }, el('span', { class: 'chip', text: `walks ${c.speed} tiles/s` }), c.outfit === 'treadwalker' ? el('span', { class: 'chip', text: 'wears a tire' }) : null);
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', disabled: true, text: 'Playing' });
+        else if (have) btn = el('button', { class: 'btn', text: 'Play as', onclick: () => { game.selectCharacter(c.id); render(); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${c.price}`, disabled: P.cash < c.price, onclick: () => { const e = game.buyCharacter(c.id); this.toast(e || `Now playing as ${c.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: c.name }), c.desc ? el('small', { text: c.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
+  openDealer(game) { this.game = game; this.modal('Auto Dealer', el('div', {}, this.vehiclesBlock(game, game.reg.list('vehicle').slice().sort((a, b) => a.price - b.price), true), this.trailersBlock(game, game.reg.list('trailer').slice().sort((a, b) => a.price - b.price), true))); }
+  trailersBlock(game, list, dealer) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile, veh = game.reg.get('vehicle', P.vehicle);
+      if (!list.length) return;
+      body.append(el('h3', { text: dealer ? 'trailers' : 'trailer' }));
+      if (!dealer) body.append(el('div', { class: 'part' + (P.trailer ? '' : ' eq') }, el('div', { class: 'pinfo' }, el('b', { text: 'No trailer' })), el('button', { class: 'btn', disabled: !P.trailer, text: P.trailer ? 'Unhitch' : 'Hitched: none', onclick: () => { game.hitch(null); render(); } })));
+      for (const t of list) {
+        const have = P.trailers.has(t.id), cur = P.trailer === t.id, why = canTow(veh, t);
+        const chips = el('div', { class: 'chips' }, ...[`${t.coupling === 'fifth' ? 'fifth wheel' : 'ball hitch'}`, `load ${t.load}`, `${t.length} long`].map((x) => el('span', { class: 'chip', text: x })));
+        if (why) chips.append(el('span', { class: 'chip bad', text: why }));
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', text: 'Unhitch', onclick: () => { game.hitch(null); render(); } });
+        else if (have) btn = el('button', { class: 'btn', disabled: !!why, text: 'Hitch', onclick: () => { const e = game.hitch(t.id); this.toast(e || `Hitched ${t.name}`, 1400); render(); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${t.price}`, disabled: P.cash < t.price, onclick: () => { const e = game.buyTrailer(t.id); this.toast(e || `Bought ${t.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: t.name }), t.desc ? el('small', { text: t.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
+  vehiclesBlock(game, list, dealer) {
+    const body = el('div', { class: 'parts' });
+    const render = () => {
+      body.replaceChildren();
+      const P = game.profile;
+      if (dealer) body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
+      body.append(el('h3', { text: dealer ? 'vehicles' : 'vehicle' }));
+      for (const v of list) {
+        const have = P.garage.has(v.id), cur = P.vehicle === v.id;
+        const chips = el('div', { class: 'chips' }, ...[`${v.topSpeed} top`, `${v.fuelCap}L tank`, `${v.l100} L/100km`, `range ~${Math.round(v.fuelCap / v.l100 * 100)} km`].map((t) => el('span', { class: 'chip', text: t })));
+        let btn;
+        if (cur) btn = el('button', { class: 'btn', disabled: true, text: 'Driving' });
+        else if (have) btn = el('button', { class: 'btn', text: 'Drive', onclick: () => { game.selectVehicle(v.id); dealer ? render() : this.openGarage(game); } });
+        else btn = el('button', { class: 'btn buy', text: `Buy $${v.price}`, disabled: P.cash < v.price, onclick: () => { const e = game.buyVehicle(v.id); this.toast(e || `Bought ${v.name}`, 1400); render(); } });
+        body.append(el('div', { class: 'part' + (cur ? ' eq' : '') }, el('div', { class: 'pinfo' }, el('b', { text: v.name }), v.desc ? el('small', { text: v.desc }) : null, chips), btn));
+      }
+    };
+    render();
+    return body;
+  }
+  openGarage(game) {
+    this.game = game; game.flags.garage = true;
+    const owned = [...game.profile.owned].map((id) => game.reg.get('part', id)).filter(Boolean);
+    this.partsModal('Garage', game, owned, false, game.reg.list('vehicle').filter((v) => game.profile.garage.has(v.id)));
+  }
+  partsModal(title, game, parts, shop, vehicles) {
     const body = el('div', { class: 'parts' });
     const render = () => {
       body.replaceChildren();
       const P = game.profile;
       body.append(el('div', { class: 'cashline', text: `Cash: $${Math.round(P.cash)}` }));
-      if (!shop) body.append(this.colorRow(game));
+      if (!shop) body.append(this.colorRow(game), el('button', { class: 'btn', text: 'Decals (draw on your roof)', onclick: () => this.openDecals(game, 'vehicle') }));
+      if (vehicles) body.append(this.charactersBlock(game));
+      if (vehicles && vehicles.length > 1) { body.append(this.vehiclesBlock(game, vehicles, false)); }
+      if (vehicles && game.profile.trailers.size) body.append(this.trailersBlock(game, game.reg.list('trailer').filter((t) => game.profile.trailers.has(t.id)), false));
       for (const slot of SLOTS) {
         const list = parts.filter((p) => p.slot === slot);
         if (!list.length) continue;
@@ -164,10 +312,17 @@ export class UI {
       el('p', { text: `Races ${g.profile.stats.races}  |  Coins ${g.profile.stats.coins}  |  ${g.profile.stats.km.toFixed(1)} km` }),
       el('button', { class: 'btn', text: 'Garage (G)', onclick: () => this.openGarage(g) }),
       el('button', { class: 'btn', text: 'Controls', onclick: () => this.controls() }),
+      el('button', { class: 'btn', text: 'Replay tutorial', onclick: () => { this.closeModal(); g.tutorial.start(); } }),
+      this.zoomRow(g),
       document.fullscreenEnabled ? el('button', { class: 'btn', text: 'Toggle fullscreen', onclick: () => { (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).catch(() => {}); this.closeModal(); } }) : null,
       g.transport.kind === 'matrix' ? el('button', { class: 'btn', text: 'Log out', onclick: async () => { g.save(); await g.transport.logout(); const { forgetMatrixSessions } = await import('../net/session.js'); forgetMatrixSessions(g.transport.base, g.transport.userId); location.href = location.pathname; } }) : null,
       el('button', { class: 'btn', text: 'Leave room', onclick: () => { g.save(); location.href = location.pathname; } }));
     this.modal('Menu', body);
+  }
+  zoomRow(g) {
+    const r = g.renderer, label = el('span', { class: 'zoomval', text: Math.round(r.zoom * 100) + '%' });
+    const step = (d) => { label.textContent = Math.round(r.setZoom(r.zoom + d) * 100) + '%'; };
+    return el('div', { class: 'row zoomrow' }, el('span', { text: 'Zoom' }), el('button', { class: 'btn', text: '-', 'aria-label': 'zoom out', onclick: () => step(-0.25) }), label, el('button', { class: 'btn', text: '+', 'aria-label': 'zoom in', onclick: () => step(0.25) }), el('button', { class: 'btn', text: 'Reset', onclick: () => step(1 - r.zoom) }));
   }
   // Where does this player's save live? Explains it plainly, and offers the fix when the room is not set up.
   storageBlock(g) {
@@ -186,7 +341,7 @@ export class UI {
   controls() {
     this.modal('Controls', el('div', { class: 'menu' },
       el('p', { text: document.body.classList.contains('touch') ? 'Touch: hold the arrow pads to steer, GAS to go, BRK for a handbrake drift, REV to brake and reverse. Tap the prompt at the bottom to refuel, shop or race.' : 'W/A/S/D or arrows: drive   Space: handbrake' }),
-      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   T: call a tow when out of fuel' }),
+      el('p', { text: 'E / F: interact (refuel, shop, race)   G: garage   V: get out / in   +/-: zoom   H: drop / hitch a trailer   T: call a tow when out of fuel' }),
       el('p', { text: 'Enter: chat   Esc: menu' }),
       el('p', { text: 'Fuel is the limit: find a gas station before the tank runs dry. Coins sit on the roads. Every biome sells different parts and charges a different fuel price.' })));
   }

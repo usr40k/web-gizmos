@@ -3,7 +3,7 @@
 import { CHUNK } from '../world/world.js';
 import { hash } from '../util/rng.js';
 import { diamond, rect, shade, fillPoly, drawText, drawTextCentered, textWidth } from './pixel.js';
-import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar } from './sprites.js';
+import { drawProp, drawBuilding, drawPadDecal, drawZone, drawCheckpoint, drawCoin, drawCar, drawWreck, drawParkedTrailer, drawCreature, drawWalker } from './sprites.js';
 
 export class Camera {
   constructor() { this.x = 0; this.y = 0; this.W = 480; this.H = 270; this.sx = 0; this.sy = 0; }
@@ -26,6 +26,7 @@ export class Renderer {
   constructor(canvas, world) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d'); this.world = world;
     this.cam = new Camera();
+    try { this.zoom = Math.min(2, Math.max(0.5, parseFloat(localStorage.getItem('isodrive:zoom')) || 1)); } catch { this.zoom = 1; }
     this.resize();
   }
 
@@ -34,12 +35,21 @@ export class Renderer {
   resize() {
     const dpr = window.devicePixelRatio || 1;
     const dw = Math.round(window.innerWidth * dpr), dh = Math.round(window.innerHeight * dpr);
-    const ds = Math.max(2, Math.round(Math.min(dw, dh) / 260));
+    const base = Math.max(2, Math.round(Math.min(dw, dh) / 260));
+    const ds = Math.max(1, Math.round(base * this.zoom * 4) / 4);          // zoom 1 = crisp integer scale; other zooms may be fractional
     this.scale = ds / dpr;
     this.cam.W = Math.ceil(dw / ds); this.cam.H = Math.ceil(dh / ds);
     this.canvas.width = this.cam.W; this.canvas.height = this.cam.H;
     this.canvas.style.width = (this.cam.W * ds / dpr) + 'px'; this.canvas.style.height = (this.cam.H * ds / dpr) + 'px';
     this.ctx.imageSmoothingEnabled = false;
+  }
+
+  // zoom 0.5 (far) .. 2 (close), steps of 0.25
+  setZoom(z) {
+    this.zoom = Math.min(2, Math.max(0.5, Math.round(z * 4) / 4));
+    try { localStorage.setItem('isodrive:zoom', String(this.zoom)); } catch { /* ignore */ }
+    this.resize();
+    return this.zoom;
   }
 
   chunkCanvas(c) {
@@ -97,7 +107,7 @@ export class Renderer {
     }
     for (const b of blds) {
       const near = g.near === b;
-      drawZone(ctx, cam, b.doorX, b.doorY, 2.4, near ? '#ffffff' : b.def.accent, t);
+      if (b.def.kind !== 'decor') drawZone(ctx, cam, b.doorX, b.doorY, 2.4, near ? '#ffffff' : b.def.accent, t);
       ents.push({ d: b.x0 + b.y0 + 0.01, f: () => drawBuilding(ctx, cam, b, t) });
     }
 
@@ -107,12 +117,24 @@ export class Renderer {
       ents.push({ d: p.x + p.y, f: () => drawCheckpoint(ctx, cam, p.x, p.y, g.race.color, i === g.race.idx, t) });
     });
 
+    if (g.parked) ents.push({ d: g.parked.x + g.parked.y, f: () => drawParkedTrailer(ctx, cam, g.parked, world.reg.get('trailer', g.parked.id)) });
+    for (const cr of g.creatures || []) ents.push({ d: cr.x + cr.y, f: () => drawCreature(ctx, cam, cr, t) });
+    for (const w of g.wrecks || []) ents.push({ d: w.x + w.y, f: () => drawWreck(ctx, cam, w, t) });
+    if (g.job) ents.push({ d: g.job.tx + g.job.ty, f: () => drawCheckpoint(ctx, cam, g.job.tx, g.job.ty, '#ffb020', true, t) });
     // coins
     for (const c of g.coins) ents.push({ d: c.x + c.y, f: () => drawCoin(ctx, cam, c.x, c.y, t) });
 
     // cars (ghosts first so the player is drawn over on ties)
-    for (const o of g.ghosts) ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9) });
-    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor) });
+    for (const o of g.ghosts) {
+      const veh = this.world.reg.get('vehicle', o.veh), trl = o.trl ? { def: this.world.reg.get('trailer', o.trl), th: o.th } : null;
+      if (o.foot) {                                                  // on foot: a parked vehicle plus the walker
+        const pc = { x: o.foot.px, y: o.foot.py, h: o.foot.ph }, ch = this.world.reg.get('character', o.foot.ch) || this.world.reg.list('character')[0];
+        ents.push({ d: pc.x + pc.y, f: () => drawCar(ctx, cam, pc, o.color || '#ccc', 0.9, veh, trl, { v: o.dv, t: o.dt }) });
+        if (ch) ents.push({ d: o.x + o.y + 0.5, f: () => drawWalker(ctx, cam, { x: o.x, y: o.y, speed: Math.hypot(o.vx || 0, o.vy || 0), phase: g.t * 4 }, ch, g.t, 0.95) });
+      } else ents.push({ d: o.x + o.y, f: () => drawCar(ctx, cam, o, o.color || '#ccc', 0.9, veh, trl, { v: o.dv, t: o.dt }) });
+    }
+    if (g.walker) ents.push({ d: g.walker.x + g.walker.y + 0.5, f: () => drawWalker(ctx, cam, g.walker, g.char, t) });
+    ents.push({ d: g.car.x + g.car.y + 0.02, f: () => drawCar(ctx, cam, g.car, g.carColor, 1, g.veh, g.trailer ? { def: g.trailer, th: g.car.th } : null, g.decals) });
 
     ents.sort((a, b) => a.d - b.d);
     for (const e of ents) e.f();
@@ -124,7 +146,13 @@ export class Renderer {
       drawTextCentered(ctx, (o.name || '?').slice(0, 12), sx, sy - 6, '#ffffff', '#000');
     }
     // race compass
-    if (g.race && g.race.idx < g.race.points.length) this.drawCompass(g.race.points[g.race.idx], g.car, g.race.color);
+    if (g.race && g.race.idx < g.race.points.length) this.drawCompass(g.race.points[g.race.idx], { x: g.camX, y: g.camY }, g.race.color);
+    else if (g.job) this.drawCompass({ x: g.job.tx, y: g.job.ty }, { x: g.camX, y: g.camY }, '#ffb020');
+    else if (g.guide) {                                          // tutorial: arrow at the screen edge, or a bobbing marker over the target
+      const [tx, ty] = cam.px(g.guide.x, g.guide.y, 0);
+      if (tx > 14 && tx < cam.W - 14 && ty > 44 && ty < cam.H - 14) { const by = ty - 22 + Math.round(Math.sin(t * 5) * 2); fillPoly(ctx, [[tx - 5, by - 6], [tx + 5, by - 6], [tx, by]], '#000'); fillPoly(ctx, [[tx - 3, by - 5], [tx + 3, by - 5], [tx, by - 1]], '#00ffff'); }
+      else this.drawCompass(g.guide, { x: g.camX, y: g.camY }, '#00ffff');
+    }
   }
 
   drawCompass(p, car, color) {

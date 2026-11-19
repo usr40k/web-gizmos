@@ -26,7 +26,7 @@ js/game/                 car.js (physics), game.js (rules), profile.js (save dat
 js/render/               pixel.js (crisp drawing), sprites.js (shapes), renderer.js
 js/net/                  transport.js (interface), local.js, matrix.js
 js/ui/ui.js              all DOM UI (text only, never innerHTML)
-tools/                   validate-content.mjs, mock-homeserver.mjs
+tools/                   validate-content.mjs, world-stats.mjs, mock-homeserver.mjs
 ```
 
 ## Multiplayer with Matrix
@@ -74,6 +74,7 @@ documented at the top of `js/net/transport.js`; nothing else in the game changes
 
 ```
 node tools/validate-content.mjs                 # all content in the manifest
+node tools/world-stats.mjs stats 80             # minutes to cross each biome (world scale check)
 node tools/mock-homeserver.mjs 8008             # fake Matrix server for offline testing (users: any name, password pw-<name>)
 ```
 

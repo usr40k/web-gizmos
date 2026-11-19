@@ -6,7 +6,8 @@
 export const SLOTS = ['engine', 'tires', 'tank', 'body'];
 export const STATS = ['accel', 'topSpeed', 'grip', 'offroad', 'fuelCap', 'efficiency'];
 export const SHAPES = ['tree', 'pine', 'cactus', 'rock', 'crystal', 'mushroom', 'box'];
-export const KINDS = ['gas_station', 'shop', 'race_pad'];
+export const KINDS = ['gas_station', 'shop', 'race_pad', 'dealer', 'depot', 'decor'];
+export const SERVICES = ['gas_station', 'shop', 'race_pad', 'dealer', 'depot'];       // building kinds a settlement can guarantee
 
 const ID = { type: 'string', required: true, pattern: '^[a-z0-9_]+$', max: 40,
   doc: 'Unique lowercase id: letters a-z, digits, underscore. Never reuse an id from another pack.' };
@@ -21,6 +22,9 @@ export const SCHEMA = {
       id: ID,
       name: NAME('Name shown in the "Entering ..." banner.'),
       weight: { type: 'number', min: 0.1, max: 10, default: 1, doc: 'How common this biome is (1 = normal, 2 = twice as common).' },
+      scale: { type: 'number', min: 1, max: 15, default: 5, doc: 'About how many MINUTES it takes to drive across this biome (1 = tiny, 15 = vast). Bigger scale = bigger regions.' },
+      patch: { type: 'bool', default: false, doc: 'true = a small patch biome (oasis, crater...) that appears inside bigger biomes instead of forming its own region. Use scale 1 to 2.5.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only for patch biomes: ids of the biomes this patch may appear in. Empty = anywhere.' },
       start: { type: 'bool', default: false, doc: 'true on ONE biome only: the world spawns the player in it. Leave false in your own packs.' },
       palette: {
         type: 'object', required: true, doc: 'Colors. Use #rrggbb hex.',
@@ -59,8 +63,14 @@ export const SCHEMA = {
           chance: { type: 'number', min: 0, max: 1, required: true },
         } },
       },
+      homes: {
+        type: 'list', doc: 'Decor buildings (houses, offices) this biome uses to fill towns. chance = relative weight. Empty = only the settlement\'s own buildings.',
+        of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
+      },
       shopStock: { type: 'list', of: { type: 'ref', ref: 'part' }, doc: 'Part ids sold by shops in this biome. Different biomes = different stock.' },
       fuelPrice: { type: 'number', min: 0.2, max: 6, default: 1, doc: 'Multiplier on the base fuel price.' },
+      creatures: { type: 'number', min: 0, max: 1, default: 0.04, doc: 'How often silly creatures (aliens, UFOs, cows) stand near highways (0 = never).' },
+      wrecks: { type: 'number', min: 0, max: 1, default: 0.15, doc: 'How often salvageable wrecks sit beside highways (0 = never).' },
       coins: { type: 'number', min: 0, max: 1, default: 0.25, doc: 'How often cash trails appear on roads (0 = never).' },
     },
   },
@@ -85,7 +95,7 @@ export const SCHEMA = {
     fields: {
       id: ID,
       name: NAME(),
-      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad' },
+      kind: { type: 'enum', values: KINDS, required: true, doc: 'gas_station | shop | race_pad | dealer (sells vehicles) | depot (job board for hauling) | decor (decor = a house/tower that does nothing, used to fill towns)' },
       color: { type: 'color', required: true, doc: 'Wall color.' },
       roof: { type: 'color', optional: true, doc: 'Roof color (defaults to a lighter wall color).' },
       accent: color('#ffd24a', 'Sign and trim color.'),
@@ -117,6 +127,141 @@ export const SCHEMA = {
           efficiency: { type: 'number', min: -0.5, max: 0.8, default: 0, doc: '+0.1 = 10% less fuel burned; negative = thirstier.' },
         },
       },
+    },
+  },
+
+  settlement: {
+    plural: 'settlements',
+    doc: 'A town on a highway crossroads, sparse and far apart. It gets its own street grid, a few guaranteed services at the crossroads, and filler buildings. Add new sizes or flavours freely.',
+    fields: {
+      id: ID,
+      name: NAME('Type name, e.g. "Village".'),
+      size: { type: 'enum', values: ['outpost', 'village', 'town', 'city'], required: true, doc: 'Just a label for humans; the numbers below decide the real size.' },
+      radius: { type: 'int', min: 16, max: 400, default: 70, doc: 'Half-width of the town in tiles (outpost 30, village 75, town 150, city 260).' },
+      block: { type: 'int', min: 22, max: 44, default: 30, doc: 'Distance between streets in tiles.' },
+      density: { type: 'number', min: 0, max: 1, default: 0.6, doc: 'Fraction of lots that get a building.' },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common (outposts are common, cities rare).' },
+      starter: { type: 'bool', default: false, doc: 'true on ONE settlement: it is placed at the spawn point. Leave false in your own packs.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only appear in these biomes. Empty = anywhere.' },
+      services: { type: 'list', of: { type: 'enum', values: SERVICES }, doc: 'Up to 4 building KINDS guaranteed around the crossroads, e.g. ["gas_station", "shop"]. The look comes from the biome.' },
+      buildings: {
+        type: 'list', doc: 'Extra filler buildings for this settlement type (towers, warehouses...). chance = relative weight, mixed with the biome homes.',
+        of: { type: 'object', fields: { building: { type: 'ref', ref: 'building', required: true }, chance: { type: 'number', min: 0, max: 100, required: true } } },
+      },
+    },
+  },
+
+  vehicle: {
+    plural: 'vehicles',
+    doc: 'A drivable vehicle base. Sold at dealers. Parts are added on top of these numbers. l100 is REAL-WORLD fuel use (litres per 100 km) of that class; the game stretches 1 tile to 100 m for fuel, so a sedan (8 L/100km) goes about 10 minutes on a tank. Tip: copy a sibling vehicle and change numbers.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Pickup".'),
+      shape: { type: 'enum', values: ['sedan', 'wagon', 'suv', 'pickup', 'van', 'tow', 'semi', 'cabover'], required: true, doc: 'Which body is drawn. semi = conventional (long hood), cabover = flat-nose cab over the engine.' },
+      price: { type: 'int', min: 0, max: 1000000, required: true, doc: '0 = free starter (at least one vehicle must cost 0).' },
+      desc: { type: 'string', max: 80, optional: true },
+      length: { type: 'number', min: 1.2, max: 4, default: 1.64, doc: 'Tiles long (sedan 1.64). Longer vehicles are also harder to turn.' },
+      width: { type: 'number', min: 0.6, max: 1.6, default: 0.88 },
+      height: { type: 'number', min: 2, max: 10, default: 4.5, doc: 'Pixel height of the roof.' },
+      accel: { type: 'number', min: 2, max: 20, default: 9 },
+      topSpeed: { type: 'number', min: 5, max: 30, default: 14, doc: 'Tiles per second.' },
+      grip: { type: 'number', min: 1, max: 10, default: 5 },
+      offroad: { type: 'number', min: 0, max: 1, default: 0 },
+      turn: { type: 'number', min: 0.8, max: 3.5, default: 2.4, doc: 'Steering rate (semis 1.5, sedan 2.4).' },
+      brake: { type: 'number', min: 6, max: 40, default: 20 },
+      fuelCap: { type: 'number', min: 10, max: 1000, default: 50, doc: 'Tank litres.' },
+      coupling: { type: 'enum', values: ['ball', 'fifth'], default: 'ball', doc: 'ball = bumper hitch trailers; fifth = semi tractors with fifth-wheel trailers.' },
+      tow: { type: 'number', min: 0, max: 3, default: 0.4, doc: 'Heaviest trailer load it can pull (trailer.load, 0.3 light ... 1.2 heavy).' },
+      l100: { type: 'number', min: 2, max: 80, default: 8, doc: 'Real-world average litres per 100 km: sedan 8, wagon 7.5, van 11, SUV 12.5, pickup 13, tow truck 25, semi 32-40.' },
+    },
+  },
+
+  trailer: {
+    plural: 'trailers',
+    doc: 'A real hinged trailer. It swings behind the vehicle and can jackknife. Sold at dealers. coupling must match the vehicle (ball or fifth) and load must not exceed the vehicle tow rating.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Box trailer".'),
+      shape: { type: 'enum', values: ['open', 'box', 'flatbed', 'tanker'], required: true, doc: 'Which body is drawn.' },
+      coupling: { type: 'enum', values: ['ball', 'fifth'], default: 'ball' },
+      price: { type: 'int', min: 0, max: 1000000, required: true },
+      desc: { type: 'string', max: 80, optional: true },
+      length: { type: 'number', min: 1, max: 8, default: 2.2, doc: 'Tiles long.' },
+      width: { type: 'number', min: 0.5, max: 1.6, default: 0.9 },
+      height: { type: 'number', min: 2, max: 12, default: 5, doc: 'Pixel height of the roof/sides.' },
+      load: { type: 'number', min: 0, max: 3, default: 0.5, doc: 'How heavy. Slows acceleration/top speed and raises fuel use (0.3 light, 1 loaded semi trailer).' },
+      color: { type: 'color', default: '#d8d8dc' },
+      accent: { type: 'color', default: '#3a6ad0' },
+    },
+  },
+
+  character: {
+    plural: 'characters',
+    doc: 'A playable on-foot character. Players can get out of their vehicle (V) and walk around as this character. outfit picks the body drawn; the colours dress it.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Treadwalker".'),
+      desc: { type: 'string', max: 80, optional: true },
+      price: { type: 'int', min: 0, max: 100000, default: 0, doc: '0 = free. At least one character must cost 0.' },
+      outfit: { type: 'enum', values: ['person', 'treadwalker'], required: true, doc: 'person = ordinary human; treadwalker = a person wearing a big tire around the torso.' },
+      speed: { type: 'number', min: 1, max: 8, default: 3.2, doc: 'Walking speed in tiles per second.' },
+      skin: { type: 'color', default: '#e0b48a' },
+      hair: { type: 'color', default: '#3a2a1a' },
+      shirt: { type: 'color', default: '#4a6ad0' },
+      pants: { type: 'color', default: '#2a2f4a' },
+      shoes: { type: 'color', default: '#222222' },
+      tire: { type: 'color', default: '#4a3a2c', doc: 'Treadwalker only: the tire rubber colour.' },
+    },
+  },
+
+  job: {
+    plural: 'jobs',
+    doc: 'A haul offered at depots. The player drives to a drop zone down the same highway. rate = cash per tile of distance (multiplied by 1 + trailer load). needs say what the player must be pulling.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Gravel run".'),
+      desc: { type: 'string', max: 80, optional: true },
+      rate: { type: 'number', min: 0.05, max: 5, default: 0.35, doc: 'Cash per tile.' },
+      minDist: { type: 'int', min: 100, max: 6000, default: 500, doc: 'Shortest haul in tiles (600 tiles is about a minute).' },
+      maxDist: { type: 'int', min: 100, max: 8000, default: 2000 },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How often it is offered.' },
+      coupling: { type: 'enum', values: ['any', 'ball', 'fifth', 'none'], default: 'any', doc: 'any = any trailer, ball/fifth = that hitch type, none = no trailer needed (parcels).' },
+      shape: { type: 'enum', values: ['any', 'open', 'box', 'flatbed', 'tanker'], default: 'any', doc: 'Trailer body needed.' },
+      minLoad: { type: 'number', min: 0, max: 3, default: 0, doc: 'Trailer load needed (a heavy trailer for heavy cargo).' },
+    },
+  },
+
+  creature: {
+    plural: 'creatures',
+    doc: 'A silly roadside creature. Stop next to it and press E to talk: it says one of its lines and may hand over cash or fuel. It wanders back after a while.',
+    fields: {
+      id: ID,
+      name: NAME('e.g. "Zorp".'),
+      shape: { type: 'enum', values: ['alien', 'ufo', 'cow'], required: true, doc: 'Which body is drawn.' },
+      color: { type: 'color', default: '#6adf6a' },
+      accent: { type: 'color', default: '#ff4af0' },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common.' },
+      inside: { type: 'list', of: { type: 'ref', ref: 'biome' }, doc: 'Only appear in these biomes. Empty = anywhere.' },
+      lines: { type: 'list', of: { type: 'string', max: 70 }, doc: 'What it says (up to 6 lines, picked at random).' },
+      cash: { type: 'int', min: 0, max: 1000, default: 25, doc: 'Maximum cash given (30-100%).' },
+      fuel: { type: 'int', min: 0, max: 100, default: 0, doc: 'Maximum litres given (30-100%).' },
+    },
+  },
+
+  wreck: {
+    plural: 'wrecks',
+    doc: 'A broken-down vehicle beside a highway. Press E next to it to salvage cash and fuel; it comes back after a while.',
+    fields: {
+      id: ID,
+      name: NAME('Shown in the prompt, e.g. "Rusty sedan".'),
+      color: { type: 'color', default: '#8a5a44' },
+      accent: { type: 'color', default: '#d9d2c0' },
+      length: { type: 'number', min: 2, max: 12, default: 4.2, doc: 'Tiles long.' },
+      width: { type: 'number', min: 1, max: 5, default: 2, doc: 'Tiles wide.' },
+      height: { type: 'number', min: 1, max: 20, default: 3 },
+      weight: { type: 'number', min: 0.05, max: 20, default: 1, doc: 'How common.' },
+      cash: { type: 'int', min: 0, max: 2000, default: 40, doc: 'Maximum cash found (you get 30-100% of it).' },
+      fuel: { type: 'int', min: 0, max: 100, default: 6, doc: 'Maximum litres siphoned (30-100% of it).' },
     },
   },
 

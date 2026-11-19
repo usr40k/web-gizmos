@@ -23,9 +23,16 @@ authority; this file is the friendly version.
 |------|----|-------|
 | `biomes` | A region: colors, slipperiness, scenery, roadside buildings, shop stock, fuel price | `id`, `name`, `palette.ground` |
 | `props` | One piece of scenery. `shape` picks the drawing, you pick colors/size | `id`, `shape`, `color` |
-| `buildings` | Roadside building. `kind` = `gas_station`, `shop` or `race_pad` | `id`, `name`, `kind`, `color` (+ `race` for `race_pad`) |
+| `buildings` | Roadside building. `kind` = `gas_station`, `shop`, `race_pad`, `dealer`, `depot` (job board) or `decor` (town filler) | `id`, `name`, `kind`, `color` (+ `race` for `race_pad`) |
 | `parts` | A car part for slot `engine`, `tires`, `tank` or `body` | `id`, `name`, `slot`, `price` |
 | `races` | A time trial a `race_pad` starts | `id`, `name` |
+| `settlements` | A town (outpost to city) on a highway crossing: street grid, guaranteed `services`, filler buildings | `id`, `name`, `size` |
+| `vehicles` | A drivable base (sedan to semi). `l100` is real-world fuel use, `coupling`/`tow` say which trailers it pulls | `id`, `name`, `shape`, `price` |
+| `trailers` | A hinged trailer (ball hitch or fifth wheel) with a `load` that slows and thirsts the vehicle | `id`, `name`, `shape`, `price` |
+| `characters` | An on-foot character (V to get out). `outfit` person or treadwalker (a tire worn on the torso) | `id`, `name`, `outfit` |
+| `jobs` | A haul offered at depots: rate per tile, what trailer is needed | `id`, `name` |
+| `wrecks` | A salvageable wreck beside highways (cash + fuel) | `id`, `name` |
+| `creatures` | A talkable roadside alien, UFO or cow (cash/fuel + lines) | `id`, `name`, `shape` |
 
 Things refer to each other **by id**: a biome lists prop ids, building ids and part ids; a `race_pad` building names a race id.
 You can refer to ids from other packs (including `base`). A reference to an id that does not exist skips the item
@@ -46,6 +53,18 @@ and tells you which one is missing.
 - Every slot must have one `price: 0` starter part. The base pack already has them; do not add another free part.
 - A new biome only shows up if its `weight` is > 0. `weight: 1` is as common as the other base biomes.
 - Only the base pack sets `start: true`. Leave it out.
+
+## Biome size and patches
+
+`scale` is roughly **how many minutes it takes to drive across** the biome: 1 is tiny, 15 is vast, default 5. The world is
+built from big regions (each biome claims space in proportion to its scale) and highways are about 1.5 minutes apart, so
+there is a lot of empty road between towns. Keep `scale` between 3 and 12 for normal biomes.
+
+For small features (an oasis, a crater, a glacier lake) make a **patch biome**: `patch: true`, `scale: 1` to `2.5`, and
+`inside: ['desert']` to limit where it can appear (leave `inside` empty for anywhere). Patches are dropped into bigger biomes and
+override them locally; give them their own palette, props, shop stock and fuel price (a remote oasis can charge a lot for fuel).
+
+Check how a pack changes the world with `node tools/world-stats.mjs <seed>`, which prints how many minutes each biome takes to cross.
 
 ## Recipes
 

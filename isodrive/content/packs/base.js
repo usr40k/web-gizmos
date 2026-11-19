@@ -8,50 +8,77 @@ export default {
   // ---------------------------------------------------------------- biomes
   biomes: [
     {
-      id: 'meadow', name: 'Greenwood Meadows', start: true, weight: 2,
+      id: 'meadow', scale: 4, name: 'Greenwood Meadows', start: true, weight: 2,
       palette: { ground: ['#5fa34a', '#58994a', '#67ad52', '#4f9145'], road: '#4b4b55', roadLine: '#e8e4b8', speck: '#86d26e' },
       terrain: { grip: 0.75, drag: 1.0 },
-      props: [{ prop: 'oak', density: 0.05 }, { prop: 'pine_green', density: 0.025 }, { prop: 'boulder_grey', density: 0.01 }],
-      roadside: [{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.25 }, { building: 'race_pad_std', chance: 0.1 }],
+      props: [{ prop: 'oak', density: 0.05 }, { prop: 'pine_green', density: 0.025 }, { prop: 'boulder_grey', density: 0.01 }, { prop: 'giant_boulder', density: 0.0015 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.25 }, { building: 'race_pad_std', chance: 0.1 }],
+      homes: [{ building: 'house_std', chance: 1 }, { building: 'house_red', chance: 0.6 }],
       shopStock: ['engine_v6', 'tires_sport', 'tank_long', 'body_aero'],
       fuelPrice: 1.0, coins: 0.3,
     },
     {
-      id: 'desert', name: 'Sunscar Desert', weight: 1.5,
+      id: 'desert', scale: 8, name: 'Sunscar Desert', weight: 1.5,
       palette: { ground: ['#e9bf72', '#e2b565', '#edc57d', '#dcab5c'], road: '#5a4a40', roadLine: '#f6e7a0', speck: '#f7d88f' },
       terrain: { grip: 0.55, drag: 1.6 },
-      props: [{ prop: 'cactus_green', density: 0.025 }, { prop: 'sandrock', density: 0.02 }],
-      roadside: [{ building: 'gas_adobe', chance: 0.3 }, { building: 'shop_adobe', chance: 0.2 }, { building: 'race_pad_std', chance: 0.1 }],
+      props: [{ prop: 'cactus_green', density: 0.025 }, { prop: 'sandrock', density: 0.02 }, { prop: 'giant_sandrock', density: 0.002 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_adobe', chance: 0.3 }, { building: 'shop_adobe', chance: 0.2 }, { building: 'race_pad_std', chance: 0.1 }],
+      homes: [{ building: 'house_adobe', chance: 1 }],
+      creatures: 0.06,
       shopStock: ['engine_turbo', 'tires_offroad', 'tank_long'],
       fuelPrice: 1.6, coins: 0.2,
     },
     {
-      id: 'neon', name: 'Neon Flats', weight: 1,
+      id: 'neon', scale: 3, name: 'Neon Flats', weight: 1,
       palette: { ground: ['#1a1233', '#20163d', '#161029', '#241946'], road: '#0b0b14', roadLine: '#00ffff', speck: '#6a3cff' },
       terrain: { grip: 0.9, drag: 0.9 },
       props: [{ prop: 'crystal_magenta', density: 0.02 }, { prop: 'crystal_cyan', density: 0.02 }, { prop: 'glowshroom', density: 0.015 }, { prop: 'pylon', density: 0.006 }],
-      roadside: [{ building: 'gas_neon', chance: 0.3 }, { building: 'shop_neon', chance: 0.3 }, { building: 'race_pad_neon', chance: 0.12 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_neon', chance: 0.3 }, { building: 'shop_neon', chance: 0.3 }, { building: 'race_pad_neon', chance: 0.12 }],
+      homes: [{ building: 'house_neon', chance: 1 }],
+      creatures: 0.12,
       shopStock: ['engine_turbo', 'tires_sport', 'body_aero'],
       fuelPrice: 1.3, coins: 0.35,
     },
     {
-      id: 'tundra', name: 'Frostline Tundra', weight: 1,
+      id: 'tundra', scale: 10, name: 'Frostline Tundra', weight: 1,
       palette: { ground: ['#e8f2fa', '#dceaf5', '#f2f8fd', '#d2e3f0'], road: '#5b6b7a', roadLine: '#ffffff', speck: '#ffffff' },
       terrain: { grip: 0.35, drag: 0.9 },          // slippery!
       roadSurface: { grip: 0.65, drag: 0.35 },     // icy roads
-      props: [{ prop: 'pine_snow', density: 0.04 }, { prop: 'ice_rock', density: 0.015 }],
-      roadside: [{ building: 'gas_frost', chance: 0.3 }, { building: 'shop_frost', chance: 0.3 }, { building: 'race_pad_std', chance: 0.08 }],
+      props: [{ prop: 'pine_snow', density: 0.04 }, { prop: 'ice_rock', density: 0.015 }, { prop: 'giant_ice_rock', density: 0.0015 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_frost', chance: 0.3 }, { building: 'shop_frost', chance: 0.3 }, { building: 'race_pad_std', chance: 0.08 }],
+      homes: [{ building: 'house_frost', chance: 1 }],
       shopStock: ['tires_studded', 'tank_long', 'engine_v6'],
       fuelPrice: 1.2, coins: 0.25,
     },
     {
-      id: 'ashlands', name: 'Cinder Ashlands', weight: 1,
+      id: 'ashlands', scale: 6, name: 'Cinder Ashlands', weight: 1,
       palette: { ground: ['#3a2b2b', '#332626', '#41302e', '#2d2222'], road: '#1a1a1d', roadLine: '#ff7a2a', speck: '#ff5a1f' },
       terrain: { grip: 0.6, drag: 1.3 },
-      props: [{ prop: 'dead_tree', density: 0.03 }, { prop: 'ash_rock', density: 0.03 }, { prop: 'obsidian', density: 0.012 }],
-      roadside: [{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.2 }, { building: 'race_pad_neon', chance: 0.1 }],
+      props: [{ prop: 'dead_tree', density: 0.03 }, { prop: 'ash_rock', density: 0.03 }, { prop: 'obsidian', density: 0.012 }, { prop: 'giant_ash_rock', density: 0.0015 }],
+      roadside: [ { building: 'depot_std', chance: 0.06 },{ building: 'gas_std', chance: 0.3 }, { building: 'shop_std', chance: 0.2 }, { building: 'race_pad_neon', chance: 0.1 }],
+      homes: [{ building: 'house_ash', chance: 1 }],
+      creatures: 0.08,
       shopStock: ['engine_turbo', 'tires_offroad', 'body_aero'],
       fuelPrice: 0.8, coins: 0.2,
+    },
+    // ---- patch biomes: small areas (about a minute or two across) that appear INSIDE bigger biomes
+    {
+      id: 'oasis', name: 'Palm Oasis', patch: true, scale: 1.5, inside: ['desert'],
+      palette: { ground: ['#4fae6a', '#46a262', '#5bbb74', '#3f9a5c'], road: '#5a4a40', roadLine: '#f6e7a0', speck: '#9be0a8' },
+      terrain: { grip: 0.8, drag: 1.0 },
+      props: [{ prop: 'palm', density: 0.06 }, { prop: 'sandrock', density: 0.01 }],
+      roadside: [{ building: 'gas_adobe', chance: 0.45 }, { building: 'shop_adobe', chance: 0.35 }],
+      homes: [{ building: 'house_adobe', chance: 1 }],
+      shopStock: ['tank_long', 'tires_offroad'],
+      fuelPrice: 2.2, coins: 0.5,
+    },
+    {
+      id: 'ash_crater', name: 'Smoldering Crater', patch: true, scale: 1.2, inside: ['ashlands'],
+      palette: { ground: ['#2a1414', '#331818', '#241010', '#3a1c1c'], road: '#140e0e', roadLine: '#ff5a1f', speck: '#ff8a2a' },
+      terrain: { grip: 0.5, drag: 1.5 },
+      props: [{ prop: 'obsidian', density: 0.04 }, { prop: 'ash_rock', density: 0.03 }],
+      roadside: [],
+      shopStock: [], fuelPrice: 1, coins: 0.6,
     },
   ],
 
@@ -59,6 +86,10 @@ export default {
   props: [
     { id: 'oak', shape: 'tree', color: '#2f7d32', color2: '#6b4a2b', size: 1, radius: 0.35 },
     { id: 'pine_green', shape: 'pine', color: '#1f6a3a', size: 1.1, radius: 0.3 },
+    { id: 'giant_boulder', shape: 'rock', color: '#7a7a84', size: 3, radius: 1.1 },
+    { id: 'giant_sandrock', shape: 'rock', color: '#a8773c', size: 3, radius: 1.1 },
+    { id: 'giant_ice_rock', shape: 'rock', color: '#9ac0e0', size: 3, radius: 1.1 },
+    { id: 'giant_ash_rock', shape: 'rock', color: '#3a2c2c', size: 3, radius: 1.1 },
     { id: 'boulder_grey', shape: 'rock', color: '#8a8a92', size: 1, radius: 0.45 },
     { id: 'cactus_green', shape: 'cactus', color: '#3f8f45', size: 1, radius: 0.3 },
     { id: 'sandrock', shape: 'rock', color: '#b98a4a', size: 1.2, radius: 0.5 },
@@ -70,6 +101,7 @@ export default {
     { id: 'ice_rock', shape: 'rock', color: '#a8c8e4', size: 1, radius: 0.45 },
     { id: 'dead_tree', shape: 'tree', color: '#3a2b2b', color2: '#2a1f1f', size: 0.9, radius: 0.3 },
     { id: 'ash_rock', shape: 'rock', color: '#4a3838', size: 1.1, radius: 0.5 },
+    { id: 'palm', shape: 'tree', color: '#3fae5a', color2: '#8a6a3a', size: 1.2, radius: 0.3 },
     { id: 'obsidian', shape: 'crystal', color: '#ff5a1f', size: 1.2, radius: 0.35 },
   ],
 
@@ -83,8 +115,77 @@ export default {
     { id: 'shop_adobe', name: 'Dune Bazaar', kind: 'shop', color: '#c9743f', accent: '#f0e040', width: 6, depth: 4, height: 13, sign: 'SHOP' },
     { id: 'shop_neon', name: 'Chrome Lab', kind: 'shop', color: '#2b1450', accent: '#ff2bd6', width: 6, depth: 4, height: 15, sign: 'LAB' },
     { id: 'shop_frost', name: 'Ice Garage', kind: 'shop', color: '#9fc4e0', roof: '#ffffff', accent: '#2a5a8a', width: 6, depth: 4, height: 14, sign: 'PARTS' },
+    { id: 'dealership', name: 'Auto Dealer', kind: 'dealer', color: '#dfe6ee', roof: '#3a5a8a', accent: '#4a8af0', width: 9, depth: 6, height: 11, sign: 'CARS' },
+    { id: 'depot_std', name: 'Freight Depot', kind: 'depot', color: '#c8a050', roof: '#8a6a30', accent: '#ffb020', width: 8, depth: 6, height: 9, sign: 'JOBS' },
+    // decor: filler buildings for towns (kind 'decor' = no interaction)
+    { id: 'house_std', name: 'House', kind: 'decor', color: '#e8dcc0', roof: '#a8483a', accent: '#6a8cd9', width: 4, depth: 4, height: 9 },
+    { id: 'house_red', name: 'Brick House', kind: 'decor', color: '#b4574a', roof: '#4a3a3a', accent: '#ffe9a8', width: 5, depth: 4, height: 9 },
+    { id: 'house_adobe', name: 'Adobe House', kind: 'decor', color: '#d9a066', roof: '#c98a50', accent: '#2aa6a6', width: 4, depth: 4, height: 8 },
+    { id: 'house_neon', name: 'Neon Flat', kind: 'decor', color: '#1d1840', roof: '#2b1f66', accent: '#ff2bd6', width: 4, depth: 5, height: 14 },
+    { id: 'house_frost', name: 'Cabin', kind: 'decor', color: '#8a6a4a', roof: '#ffffff', accent: '#ffd24a', width: 4, depth: 4, height: 8 },
+    { id: 'house_ash', name: 'Bunker', kind: 'decor', color: '#4a4040', roof: '#2a2424', accent: '#ff7a2a', width: 5, depth: 4, height: 7 },
+    { id: 'warehouse', name: 'Warehouse', kind: 'decor', color: '#8a96a4', roof: '#6a7482', accent: '#ffd24a', width: 9, depth: 6, height: 12 },
+    { id: 'tower_office', name: 'Office Tower', kind: 'decor', color: '#6a86a8', roof: '#4a6280', accent: '#bfe6ff', width: 5, depth: 5, height: 38 },
     { id: 'race_pad_std', name: 'Time Trial', kind: 'race_pad', color: '#2b2b2b', accent: '#ffffff', width: 3, depth: 3, height: 4, sign: 'RACE', race: 'sprint' },
     { id: 'race_pad_neon', name: 'Neon Dash', kind: 'race_pad', color: '#14142a', accent: '#ff2bd6', width: 3, depth: 3, height: 4, sign: 'DASH', race: 'neon_dash' },
+  ],
+
+  // ---------------------------------------------------------------- settlements
+  settlements: [
+    { id: 'roadside_outpost', name: 'Outpost', size: 'outpost', radius: 30, block: 30, density: 0.4, weight: 5, services: ['gas_station'] },
+    { id: 'village', name: 'Village', size: 'village', radius: 75, block: 30, density: 0.6, weight: 3, starter: true, services: ['gas_station', 'shop', 'race_pad'] },
+    { id: 'town', name: 'Town', size: 'town', radius: 150, block: 32, density: 0.7, weight: 1.5, services: ['gas_station', 'shop', 'race_pad', 'depot', 'dealer'], buildings: [{ building: 'warehouse', chance: 0.25 }] },
+    { id: 'city', name: 'City', size: 'city', radius: 260, block: 34, density: 0.85, weight: 0.5, services: ['gas_station', 'shop', 'depot', 'dealer'], buildings: [{ building: 'tower_office', chance: 0.7 }, { building: 'warehouse', chance: 0.25 }] },
+  ],
+
+  vehicles: [
+    { id: 'sedan', tow: 0.35, name: 'Sedan', shape: 'sedan', price: 0, desc: 'Cheap and frugal. 8 L/100km.', accel: 9, topSpeed: 14, grip: 5, fuelCap: 50, l100: 8 },
+    { id: 'wagon', tow: 0.5, name: 'Station Wagon', shape: 'wagon', price: 1200, desc: 'Sips fuel, carries lots. 7.5 L/100km.', length: 1.8, accel: 8.5, topSpeed: 13.5, grip: 5, offroad: 0.1, fuelCap: 60, l100: 7.5, turn: 2.3 },
+    { id: 'van', tow: 0.7, name: 'Van', shape: 'van', price: 2000, desc: 'Big tank, slow to turn. 11 L/100km.', length: 1.95, width: 0.95, height: 7, accel: 6.5, topSpeed: 11.5, grip: 4, offroad: 0.1, fuelCap: 70, l100: 11, turn: 2.0, brake: 18 },
+    { id: 'suv', tow: 0.8, name: 'SUV', shape: 'suv', price: 2500, desc: 'Rough-road capable, thirsty. 12.5 L/100km.', length: 1.75, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.6, offroad: 0.35, fuelCap: 70, l100: 12.5, turn: 2.2 },
+    { id: 'pickup', tow: 1.0, name: 'Pickup', shape: 'pickup', price: 3000, desc: 'Tough and roomy. 13 L/100km.', length: 1.95, width: 0.95, height: 6, accel: 8, topSpeed: 13, grip: 4.4, offroad: 0.3, fuelCap: 80, l100: 13, turn: 2.1 },
+    { id: 'tow_truck', tow: 1.2, name: 'Tow Truck', shape: 'tow', price: 6000, desc: 'Heavy diesel, big tank. 25 L/100km.', length: 2.3, width: 1.0, height: 7, accel: 6, topSpeed: 11, grip: 3.8, offroad: 0.25, fuelCap: 120, l100: 25, turn: 1.85, brake: 16 },
+    { id: 'semi_2axle', name: 'Conventional Semi (2-axle)', shape: 'semi', price: 9000, desc: 'Road tractor, 26 L/100km bobtail, ~36 hauling.', length: 2.4, width: 1.0, height: 8, accel: 5, topSpeed: 10, grip: 3.5, offroad: 0.1, fuelCap: 200, l100: 26, coupling: 'fifth', tow: 1.5, turn: 1.6, brake: 14 },
+    { id: 'cabover_2axle', name: 'Cabover Semi (2-axle)', shape: 'cabover', price: 8500, desc: 'Short flat-nose tractor: tighter turns, 24 L/100km bobtail.', length: 2.1, width: 1.0, height: 8, accel: 5, topSpeed: 10, grip: 3.5, offroad: 0.1, fuelCap: 180, l100: 24, coupling: 'fifth', tow: 1.5, turn: 1.8, brake: 14 },
+    { id: 'cabover_3axle', name: 'Cabover Semi (3-axle)', shape: 'cabover', price: 13000, desc: 'Compact heavy hauler, 28 L/100km bobtail.', length: 2.35, width: 1.05, height: 8, accel: 4.5, topSpeed: 9.5, grip: 3.3, offroad: 0.15, fuelCap: 250, l100: 28, coupling: 'fifth', tow: 1.5, turn: 1.65, brake: 13 },
+    { id: 'semi_3axle', name: 'Conventional Semi (3-axle)', shape: 'semi', price: 14000, desc: 'Heavy haul tractor, 30 bobtail, ~42 hauling.', length: 2.7, width: 1.05, height: 8, accel: 4.5, topSpeed: 9.5, grip: 3.3, offroad: 0.15, fuelCap: 280, l100: 30, coupling: 'fifth', tow: 1.5, turn: 1.45, brake: 13 },
+  ],
+
+  trailers: [
+    { id: 'utility_trailer', name: 'Utility Trailer', shape: 'open', price: 500, desc: 'Small open trailer. Light.', length: 1.5, width: 0.85, height: 4, load: 0.3, color: '#7a8088' },
+    { id: 'box_trailer', name: 'Box Trailer', shape: 'box', price: 1400, desc: 'Enclosed cargo box.', length: 2.1, width: 0.9, height: 7, load: 0.55 },
+    { id: 'cargo_trailer', name: 'Long Cargo Trailer', shape: 'box', price: 2800, desc: 'Big enclosed trailer for trucks.', length: 3.0, width: 0.95, height: 8, load: 0.95, accent: '#d0603a' },
+    { id: 'semi_box', name: 'Semi Box Trailer', shape: 'box', coupling: 'fifth', price: 5000, desc: '53-foot style dry van.', length: 5.0, width: 1.05, height: 9, load: 1.0 },
+    { id: 'semi_flatbed', name: 'Semi Flatbed', shape: 'flatbed', coupling: 'fifth', price: 4500, desc: 'Open deck for anything.', length: 5.0, width: 1.05, height: 5, load: 0.9, color: '#6c7480' },
+    { id: 'semi_tanker', name: 'Semi Tanker', shape: 'tanker', coupling: 'fifth', price: 7000, desc: 'Heavy liquid hauler.', length: 4.6, width: 1.0, height: 8, load: 1.2, color: '#c8ccd2', accent: '#d0a030' },
+  ],
+
+  characters: [
+    { id: 'driver', name: 'Driver', desc: 'Just a regular road tripper.', price: 0, outfit: 'person', speed: 3.2 },
+    { id: 'mechanic', name: 'Mechanic', desc: 'Overalls and a bad attitude.', price: 120, outfit: 'person', speed: 3.4, shirt: '#d0702a', pants: '#2c4a8a', hair: '#1a1a1a', skin: '#b88660' },
+    { id: 'treadwalker', name: 'Treadwalker', desc: 'Wears a Farben tire. Slow and sturdy.', price: 0, outfit: 'treadwalker', speed: 2.7, shirt: '#4a6a8a', pants: '#14161c', skin: '#3a2a20', tire: '#4a3a2c' },
+  ],
+
+  jobs: [
+    { id: 'parcel', name: 'Parcel run', desc: 'A few boxes in the back. Any vehicle.', rate: 0.22, minDist: 400, maxDist: 1600, weight: 3, coupling: 'none' },
+    { id: 'gravel', name: 'Gravel haul', desc: 'Any trailer will do.', rate: 0.34, minDist: 600, maxDist: 2200, weight: 3, coupling: 'any', minLoad: 0.25 },
+    { id: 'freight', name: 'Dry freight', desc: 'A semi box trailer, fully loaded.', rate: 0.5, minDist: 900, maxDist: 3200, weight: 2, coupling: 'fifth', shape: 'box', minLoad: 0.9 },
+    { id: 'steel', name: 'Steel beams', desc: 'Needs a flatbed.', rate: 0.55, minDist: 900, maxDist: 3000, weight: 1.5, coupling: 'any', shape: 'flatbed', minLoad: 0.8 },
+    { id: 'fuel_run', name: 'Fuel delivery', desc: 'Tanker only. Pays best.', rate: 0.8, minDist: 800, maxDist: 3200, weight: 1, coupling: 'fifth', shape: 'tanker', minLoad: 1.0 },
+  ],
+
+  creatures: [
+    { id: 'zorp', name: 'Zorp', shape: 'alien', color: '#6adf6a', accent: '#ff4af0', weight: 3, cash: 40, lines: ['Greetings, earth-driver. Do you have any tires?', 'Take this shiny. It fell off my ship.', 'Your planet has very long roads. I approve.', 'Beep. That means hello.'] },
+    { id: 'gloop', name: 'Gloop', shape: 'alien', color: '#8a6aff', accent: '#ffe94a', weight: 1.5, cash: 20, fuel: 8, lines: ['I sell fuel but mostly I forgot the price.', 'Is this a gas station? It smells like one.', 'Wobble wobble. Have some juice.'] },
+    { id: 'saucer', name: 'Little UFO', shape: 'ufo', color: '#b8c0cc', accent: '#6aefff', weight: 1, inside: ['neon', 'ashlands', 'desert'], cash: 90, fuel: 12, lines: ['*hovers politely*', 'WE COME IN PEACE. AND FOR YOUR SNACKS.', 'Abduction cancelled. Here is a refund.'] },
+    { id: 'cow', name: 'Cow', shape: 'cow', color: '#f4f4f4', accent: '#222222', weight: 2, inside: ['meadow', 'tundra'], cash: 10, lines: ['Moo.', 'Mooooo. (It means "honk less".)', 'The cow stares at you. You feel judged.'] },
+  ],
+
+  wrecks: [
+    { id: 'wreck_sedan', name: 'Rusty sedan', color: '#8a5a44', length: 4.2, width: 2, height: 3, weight: 3, cash: 40, fuel: 5 },
+    { id: 'wreck_pickup', name: 'Abandoned pickup', color: '#5a6e8a', length: 5, width: 2.1, height: 3.4, weight: 2, cash: 60, fuel: 9 },
+    { id: 'wreck_bus', name: 'Burnt-out bus', color: '#a89a4a', length: 9, width: 2.6, height: 5, weight: 0.6, cash: 160, fuel: 20 },
+    { id: 'wreck_van', name: 'Stripped van', color: '#9aa0a8', length: 5.2, width: 2.3, height: 4, weight: 1.5, cash: 70, fuel: 10 },
   ],
 
   // ---------------------------------------------------------------- parts (price 0 = free starter for that slot)

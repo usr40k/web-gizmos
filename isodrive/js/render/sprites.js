@@ -1,6 +1,8 @@
 // Procedural pixel sprites. A "shape" is just a function here - content packs pick a shape + colors,
 // so adding scenery never needs new drawing code. To add a NEW shape: add a function below and its name in
 // SHAPES (content/schema.js).
+import { trailerPose } from '../game/trailer.js';
+import { PAL, ROWS, colsFor, validDecal } from '../game/decal.js';
 import { fillPoly, rect, fillEllipse, strokeEllipse, shade, mix, drawTextCentered, diamond, textWidth } from './pixel.js';
 
 const LX = -0.447, LY = 0.895;     // light direction (from the left-front)
@@ -191,21 +193,181 @@ export function drawCoin(ctx, cam, x, y, t) {
 }
 
 // ------------------------------------------------------------------ cars
-export function drawCar(ctx, cam, car, color, alpha = 1) {
+const GLASS = '#8fd0f0';
+// Vehicle body from boxes. `v` is a vehicle definition (shape, length, width, height); missing = sedan.
+// Paint a decal flat on a roof: centre (cx,cy), heading ang, footprint len x wid tiles, height z. Columns run front to back... left to right = tail to nose.
+function drawDecalTop(ctx, cam, data, kind, cx, cy, ang, len, wid, z) {
+  if (!validDecal(data, kind)) return;
+  const cols = colsFor(kind), c = Math.cos(ang), s = Math.sin(ang);
+  for (let r = 0; r < ROWS; r++) for (let u = 0; u < cols; u++) {
+    const idx = parseInt(data[r * cols + u], 16); if (!idx) continue;
+    const a = ((u + 0.5) / cols - 0.5) * len, b = ((r + 0.5) / ROWS - 0.5) * wid;
+    const [sx, sy] = cam.px(cx + c * a - s * b, cy + s * a + c * b, z);
+    ctx.fillStyle = PAL[idx]; ctx.fillRect(sx, sy, 2, 1);
+  }
+}
+const DECAL_ZONE = { sedan: [0, 1, 1, 4.5], wagon: [0, 1, 1, 4.5], suv: [0, 1, 1, 5], pickup: [0, 1, 1, 4.2], van: [-0.08, 0.84, 1, 0], tow: [0.28, 0.4, 1, 0], semi: [0.14, 0.26, 1, 0], cabover: [0.3, 0.4, 1, 0] };
+
+export function drawCar(ctx, cam, car, color, alpha = 1, v, trailer, decals) {
   const { x, y, h } = car;
+  const L = (v && v.length) || 1.64, W = (v && v.width) || 0.88, shape = (v && v.shape) || 'sedan', H = (v && v.height) || 4.5;
   const c = Math.cos(h), s = Math.sin(h);
   const [sx, sy] = cam.px(x, y, 0);
   ctx.globalAlpha = alpha;
-  ground(ctx, sx, sy + 1, 9, 4, 0.28 * alpha);
-  drawBox(ctx, cam, x, y, 0.82, 0.44, h, 0, 2, '#1b1b22');
-  drawBox(ctx, cam, x, y, 0.82, 0.44, h, 2, 2.5, color, shade(color, 1.0));
-  drawBox(ctx, cam, x - 0.16 * c, y - 0.16 * s, 0.42, 0.37, h, 4.5, 2.6, '#8fd0f0', shade(color, 0.92));
+  ground(ctx, sx, sy + 1, L * 5.6, W * 4.6, 0.28 * alpha);
+  const at = (f) => [x + c * f * L, y + s * f * L];                      // point along the vehicle, f = -0.5..0.5
+  const parts = [];                                                          // painted back to front so rear parts never cover front ones
+  const box = (f, len, wid, z, ht, col, top) => { const [bx, by] = at(f); parts.push({ d: bx + by + z * 0.01, bx, by, hl: len * L / 2, hw: wid * W / 2, ang: h, z, ht, col, top }); };
+  box(0, 1, 1, 0, 2, '#1b1b22'); parts[0].d = -1e9;
+  const dark = shade(color, 0.62);
+  if (shape === 'sedan') { box(0, 1, 1, 2, 2.5, color, color); box(-0.1, 0.5, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
+  else if (shape === 'wagon') { box(0, 1, 1, 2, 2.5, color, color); box(-0.14, 0.7, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
+  else if (shape === 'suv') { box(0, 1, 1, 2, 3, color, color); box(-0.1, 0.7, 0.86, 5, 2.8, GLASS, shade(color, 0.92)); }
+  else if (shape === 'pickup') { box(0, 1, 1, 2, 2.2, color, color); box(0.18, 0.4, 0.88, 4.2, 2.8, GLASS, shade(color, 0.92)); box(-0.28, 0.42, 0.96, 4.2, 0.9, dark, dark); }
+  else if (shape === 'van') { box(-0.08, 0.84, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.2, 0.92, 2, 3, color, color); box(0.28, 0.06, 0.8, 4.6, 2.4, GLASS, GLASS); }
+  else if (shape === 'tow') { box(0.28, 0.4, 1, 2, H - 2, color, shade(color, 1.1)); box(0.4, 0.1, 0.84, 4.8, 2.4, GLASS, GLASS); box(-0.2, 0.62, 0.96, 2, 1, '#6c7480', '#8a94a2'); box(0.2, 0.1, 0.6, H, 1, '#ffb020', '#ffd24a'); }
+  else if (shape === 'semi') {              // conventional: long hood, upright cab, sleeper, fifth wheel
+    box(0.38, 0.26, 0.9, 2, 3.2, color, shade(color, 1.12)); box(0.5, 0.03, 0.5, 3.3, 0.8, '#aab', '#ccd');            // hood + grille bar
+    box(0.14, 0.26, 1, 2, H - 2, color, shade(color, 1.1)); box(0.27, 0.04, 0.84, 5, 2.6, GLASS, GLASS);
+    box(-0.1, 0.2, 1, 2, H - 3, dark, dark); box(-0.27, 0.42, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.3, 0.3, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44');
+  }
+  else if (shape === 'cabover') {           // flat nose: the cab sits right over the engine, so the truck is short
+    box(0.3, 0.4, 1, 2, H - 1.5, color, shade(color, 1.12)); box(0.5, 0.02, 0.86, 4.6, 3, GLASS, GLASS); box(0.5, 0.03, 0.5, 2.4, 1, '#aab', '#ccd');
+    box(0.02, 0.24, 1, 2, H - 3, dark, dark); box(-0.22, 0.5, 0.7, 2, 1.2, '#4a4a56', '#5a5a68'); box(-0.26, 0.32, 0.82, 3.2, 0.8, '#2a2a30', '#3a3a44');
+  }
+  else { box(0, 1, 1, 2, 2.5, color, color); box(-0.1, 0.5, 0.84, 4.5, 2.6, GLASS, shade(color, 0.92)); }
+  let pose = null;
+  if (trailer && trailer.def && v) { pose = trailerPose(car, v, trailer.def, trailer.th); addTrailer(parts, ctx, cam, pose, trailer.def, v); }
+  parts.sort((a, b) => a.d - b.d);
+  for (const q of parts) drawBox(ctx, cam, q.bx, q.by, q.hl, q.hw, q.ang, q.z, q.ht, q.col, q.top);
+  if (decals && v) {
+    const z = DECAL_ZONE[shape] || DECAL_ZONE.sedan, f = z[0], zz = z[3] || H;
+    drawDecalTop(ctx, cam, decals.v, 'vehicle', x + c * f * L, y + s * f * L, h, z[1] * L, z[2] * W, zz);
+    if (pose && decals.t) { const t = trailer.def; drawDecalTop(ctx, cam, decals.t, 'trailer', pose.x, pose.y, pose.th, t.length, t.width, TRAILER_TOP[t.shape](t)); }
+  }
+  if (pose) {                                  // trailer tail lights
+    const t = trailer.def, ct = Math.cos(pose.th), st = Math.sin(pose.th);
+    if (ct + st < 0) for (const sg of [-1, 1]) {
+      const [lx, ly] = cam.px(pose.x - ct * t.length / 2 - st * sg * t.width * 0.4, pose.y - st * t.length / 2 + ct * sg * t.width * 0.4, 3);
+      rect(ctx, lx, ly, 1, 1, '#ff3b3b');
+    }
+  }
   // lights, only on the visible end
   const front = c + s > 0;
-  const ex = (front ? 1 : -1) * 0.82, rx2 = -s * 0.3, ry2 = c * 0.3;
-  for (const sg of [-1, 1]) {
-    const [lx, ly] = cam.px(x + ex * c + sg * rx2, y + ex * s + sg * ry2, 3.4);
+  const ex = (front ? 1 : -1) * L / 2, rx2 = -s * W * 0.34, ry2 = c * W * 0.34;
+  const lz = Math.min(3.4, H - 1);
+  if (front || !pose) for (const sg of [-1, 1]) {
+    const [lx, ly] = cam.px(x + ex * c + sg * rx2, y + ex * s + sg * ry2, lz);
     rect(ctx, lx, ly, 1, 1, front ? '#fff7a8' : '#ff3b3b');
+  }
+  ctx.globalAlpha = 1;
+}
+
+const TRAILER_TOP = { open: () => 2.9, box: (t) => t.height, flatbed: () => 3, tanker: (t) => t.height };
+
+// trailer boxes, appended to the same depth-sorted list as the tractor
+function addTrailer(parts, ctx, cam, pose, t, v) {
+  const L = t.length, W = t.width, H = t.height, th = pose.th, ct = Math.cos(th), st = Math.sin(th);
+  const tb = (f, len, wid, z, ht, col, top, lat = 0) => {
+    const bx = pose.x + ct * f * L - st * lat * W, by = pose.y + st * f * L + ct * lat * W;
+    parts.push({ d: bx + by + z * 0.01, bx, by, hl: len * L / 2, hw: wid * W / 2, ang: th, z, ht, col, top });
+  };
+  const [gx, gy] = cam.px(pose.x, pose.y, 0);
+  ground(ctx, gx, gy + 1, L * 5.6, W * 4.6, 0.26);
+  const body = t.color, top = shade(t.color, 1.1);
+  const gap = Math.hypot(pose.hx - pose.x, pose.hy - pose.y) - L / 2;
+  if (gap > 0.05) parts.push({ d: pose.hx + pose.hy - 5, bx: pose.hx - ct * gap / 2, by: pose.hy - st * gap / 2, hl: gap / 2 + 0.05, hw: 0.05, ang: th, z: 1.5, ht: 0.8, col: '#2a2a30', top: '#3a3a44' });
+  const ax = v.coupling === 'fifth' ? -0.3 : -0.1;
+  tb(0, 0.9, 0.82, 0.8, 1.4, '#2a2a30', '#2a2a30');
+  tb(ax, 0.2, 1.06, 0, 2.2, '#15151a', '#15151a');
+  if (v.coupling === 'fifth') tb(ax - 0.14, 0.2, 1.06, 0, 2.2, '#15151a', '#15151a');
+  if (t.shape === 'open') {
+    tb(0, 1, 1, 2, 0.8, '#6a6e76', '#80858e');
+    for (const lat of [-0.46, 0.46]) tb(0, 1, 0.08, 2.8, Math.max(1, H - 2.6), body, top, lat);
+    tb(0.46, 0.06, 1, 2.8, Math.max(1, H - 2.6), body, top); tb(-0.47, 0.04, 1, 2.8, 1.2, shade(body, 0.8), shade(body, 0.8));
+  } else if (t.shape === 'flatbed') {
+    tb(0, 1, 1, 2, 0.9, body, top);
+    for (const f of [-0.46, 0.46]) for (const lat of [-0.48, 0.48]) tb(f, 0.04, 0.05, 2.9, 2.2, '#3a3a44', '#3a3a44', lat);
+    tb(0.46, 0.04, 0.95, 2.9, 2.2, '#3a3a44', '#3a3a44');
+  } else if (t.shape === 'tanker') {
+    tb(0, 1, 0.9, 2, (H - 2) * 0.55, body, top);
+    tb(0, 1, 0.62, 2 + (H - 2) * 0.55, (H - 2) * 0.45, shade(body, 1.08), shade(body, 1.2));
+    tb(0.15, 0.07, 0.94, 2, (H - 2) * 0.55, t.accent, t.accent);
+  } else {
+    tb(0, 1, 1, 2, H - 2, body, top);
+    tb(0, 1.002, 1.02, 2 + (H - 2) * 0.42, 1.2, t.accent, t.accent);
+  }
+}
+
+// a trailer standing on its own (dropped by the player)
+export function drawParkedTrailer(ctx, cam, pk, t) {
+  const gap = t.coupling === 'fifth' ? 0 : 0.4, ct = Math.cos(pk.th), st = Math.sin(pk.th), k = gap + t.length / 2;
+  const pose = { x: pk.x, y: pk.y, th: pk.th, hx: pk.x + ct * k, hy: pk.y + st * k };
+  const parts = [];
+  addTrailer(parts, ctx, cam, pose, t, { coupling: t.coupling });
+  const [sx, sy] = cam.px(pose.hx, pose.hy, 0);           // landing leg
+  rect(ctx, sx - 1, sy - 3, 2, 3, '#3a3a44');
+  parts.sort((a, b) => a.d - b.d);
+  for (const q of parts) drawBox(ctx, cam, q.bx, q.by, q.hl, q.hw, q.ang, q.z, q.ht, q.col, q.top);
+}
+
+// wrecked vehicle: a tilted box with a dark hood and a puff of smoke
+export function drawWreck(ctx, cam, w, t) {
+  const d = w.def;
+  drawBox(ctx, cam, w.x, w.y, d.length / 2, d.width / 2, w.h, 0, d.height, d.color, shade(d.color, 1.25));
+  drawBox(ctx, cam, w.x + Math.cos(w.h) * d.length * 0.3, w.y + Math.sin(w.h) * d.length * 0.3, d.length * 0.18, d.width * 0.4, w.h, d.height, 0.6, '#222');
+  const [sx, sy] = cam.px(w.x, w.y, d.height + 2);
+  for (let i = 0; i < 3; i++) { const k = (t * 0.6 + i / 3) % 1; rect(ctx, Math.round(sx + Math.sin(t + i * 2) * 2), Math.round(sy - k * 14), 2, 2, k < 0.6 ? '#555' : '#888'); }
+}
+
+// silly roadside creatures: alien, ufo, cow
+export function drawCreature(ctx, cam, c, t) {
+  const d = c.def, bob = Math.sin(t * 3 + c.phase) * 1.2;
+  const [sx, sy] = cam.px(c.x, c.y, 0);
+  if (d.shape === 'ufo') {
+    const y = sy - 20 + Math.round(bob * 2);
+    ground(ctx, sx, sy, 10, 3.5, 0.3);
+    ctx.globalAlpha = 0.14; fillPoly(ctx, [[sx - 4, y + 2], [sx + 4, y + 2], [sx + 10, sy], [sx - 10, sy]], d.accent); ctx.globalAlpha = 1;
+    fillEllipse(ctx, sx, y, 9, 3, shade(d.color, 0.8)); fillEllipse(ctx, sx, y - 3, 4.5, 3.5, d.accent); fillEllipse(ctx, sx, y - 1, 9, 2, d.color);
+    for (let i = -1; i <= 1; i++) rect(ctx, sx + i * 5 - 0, y, 1, 1, Math.floor(t * 4 + i) % 2 ? '#fff7a8' : d.accent);
+  } else if (d.shape === 'cow') {
+    ground(ctx, sx, sy, 8, 3, 0.25);
+    drawBox(ctx, cam, c.x, c.y, 0.6, 0.32, 0.4, 1.5, 4, d.color);
+    drawBox(ctx, cam, c.x + 0.62, c.y + 0.2, 0.2, 0.2, 0.4, 3.5, 3, d.color);
+    rect(ctx, sx - 2, sy - 6, 2, 2, d.accent); rect(ctx, sx + 2, sy - 4, 2, 2, d.accent);
+    for (const o of [-0.35, 0.35]) drawBox(ctx, cam, c.x + o, c.y + o * 0.2, 0.1, 0.1, 0, 0, 1.6, '#555');
+  } else {                                       // alien
+    ground(ctx, sx, sy, 5, 2, 0.28);
+    fillEllipse(ctx, sx, sy - 5, 3, 5, shade(d.color, 0.85));
+    const hy = sy - 12 + Math.round(bob);
+    fillEllipse(ctx, sx, hy, 5, 4, d.color);
+    rect(ctx, sx - 3, hy - 1, 2, 2, '#101018'); rect(ctx, sx + 1, hy - 1, 2, 2, '#101018');
+    rect(ctx, sx, hy - 8, 1, 4, shade(d.color, 0.7)); rect(ctx, sx - 1, hy - 10, 3, 2, d.accent);
+    rect(ctx, sx - 5, sy - 6 + (Math.sin(t * 6 + c.phase) > 0.6 ? -3 : 0), 1, 4, d.color); rect(ctx, sx + 4, sy - 6, 1, 4, d.color);
+  }
+}
+
+// A person on foot, about 11 px tall. ch = character definition; w = { x, y, h, speed, phase }.
+export function drawWalker(ctx, cam, w, ch, t, alpha = 1) {
+  const [sx, sy] = cam.px(w.x, w.y, 0);
+  ctx.globalAlpha = alpha;
+  ground(ctx, sx, sy + 1, 5, 2, 0.3 * alpha);
+  const moving = w.speed > 0.4, sw = moving ? Math.round(Math.sin(w.phase * 2)) : 0, bob = moving ? Math.abs(Math.sin(w.phase * 2)) > 0.7 ? 1 : 0 : 0;
+  const dark = (c) => shade(c, 0.75);
+  // legs
+  rect(ctx, sx - 2, sy - 4 + (sw > 0 ? -1 : 0), 2, 4 - (sw > 0 ? 1 : 0), ch.pants); rect(ctx, sx, sy - 4 + (sw < 0 ? -1 : 0), 2, 4 - (sw < 0 ? 1 : 0), dark(ch.pants));
+  rect(ctx, sx - 2, sy - 1 + (sw > 0 ? -1 : 0), 2, 1, ch.shoes); rect(ctx, sx, sy - 1 + (sw < 0 ? -1 : 0), 2, 1, ch.shoes);
+  const by = sy - 4 - bob;
+  if (ch.outfit === 'treadwalker') {                       // a big tire worn around the torso, sleeves sticking out at the sides
+    rect(ctx, sx - 5, by - 5 + sw, 2, 5, ch.shirt); rect(ctx, sx + 3, by - 5 - sw, 2, 5, shade(ch.shirt, 0.8));
+    rect(ctx, sx - 5, by + sw, 2, 2, ch.skin); rect(ctx, sx + 3, by - sw, 2, 2, ch.skin);
+    fillEllipse(ctx, sx, by - 4, 4, 6, shade(ch.tire, 0.7));
+    fillEllipse(ctx, sx, by - 4, 3, 5, ch.tire);
+    for (let i = 0; i < 4; i++) rect(ctx, sx - 2, by - 8 + i * 3, 4, 1, shade(ch.tire, 0.78));
+    rect(ctx, sx - 2, by - 7, 1, 7, shade(ch.tire, 1.18));
+  } else {
+    rect(ctx, sx - 2, by - 5, 4, 5, ch.shirt); rect(ctx, sx - 3, by - 5 + sw, 1, 4, dark(ch.shirt)); rect(ctx, sx + 2, by - 5 - sw, 1, 4, dark(ch.shirt));
+    rect(ctx, sx - 2, by - 8, 4, 3, ch.skin); rect(ctx, sx - 2, by - 9, 4, 2, ch.hair);
   }
   ctx.globalAlpha = 1;
 }
