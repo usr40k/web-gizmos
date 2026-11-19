@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <video id="video" autoplay playsinline></video>
+  <br>
+  <button id="snap">Take Selfie</button>
+  <a id="download" download="selfie.png">Download Selfie</a>
+  <br>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const snap = document.getElementById('snap');
+    const download = document.getElementById('download');
+
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(stream => {
+        video.srcObject = stream;
+      })
+      .catch(err => {
+        alert('Could not access camera: ' + err.message);
+      });
+
+    snap.addEventListener('click', () => {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      download.href = canvas.toDataURL('image/png');
+    });
+  </script>
+</body>
+</html>
